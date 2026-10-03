@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: >-
+  If you use this model in published work, please cite it, bandsolver, the papers it is based on
+  (see README), and Newman's description of the BAND method (Electrochemical Systems, Appendix C).
+title: "znmno2-model: an aqueous Zn/MnO2 cell model with solution speciation, solved with Newman's BAND method"
+type: software
+authors:
+  - given-names: John
+    family-names: Bernard
+version: 0.1.0
+license: BSD-3-Clause
+repository-code: "https://github.com/jcbernard87/znmno2-model"
+abstract: >-
+  A one-dimensional model of an aqueous Zn/MnO2 cell with dilute-solution transport, solution
+  speciation (pH and complexes at every point), MnO2 dissolution and deposition, Zn insertion and
+  zinc hydroxide sulfate precipitation, solved by finite volumes, backward Euler and Newton's method
+  with the BAND block-tridiagonal solver. The model versions of the original research are options.
+keywords:
+  - zinc-ion battery
+  - MnO2
+  - aqueous electrolyte
+  - speciation
+  - porous electrode
+  - Newman

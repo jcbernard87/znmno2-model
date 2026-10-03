@@ -1,0 +1,49 @@
+! Zn | probe region | separator | MnO2 cathode (corrected model).
+! Units: cm, s, mol, A, V; electrolyte concentrations in mol/L. Every name is listed in
+! python/znmno2_model/params.py with its meaning. Values are illustrative, not fitted to a cell.
+
+&cell
+  A_cell = 0.178134094, L_probe = 0.1, eps_probe = 1.0, tau_probe = 1.0
+  L_sep = 0.06, eps_sep = 0.9, tau_factor_sep = 2.0, bruggeman_sep = -0.5
+  L_cath = 0.0218, eps_cath = 0.815, tau_factor_cath = 2.0, bruggeman_cath = -0.5
+  n_probe = 20, n_sep = 30, n_cath = 40
+  sigma = 0.1
+/
+&solids
+  vf_MnO2 = 1.0d-4, vf_ZMO = 0.01, vf_host = 0.03, vf_ZHS = 0.0
+  z_ZMO = 0.5, zmin = 0.2, zmax = 0.5, theta0 = 1.0d-3
+/
+&electrolyte
+  c_ZnSO4 = 2.0, c_MnSO4 = 0.05, c_H2SO4 = 0.0
+  D_Zn = 7.15d-6, D_Mn = 6.88d-6, D_SO4 = 1.07d-5, D_H = 9.0d-5
+/
+&reactions
+  U1 = 1.986, k1 = 1.0d-10, U2 = 2.49, k2 = 1.0d-9, k3 = 1.0d-9, k_an = 1.0d-6
+  logK_ZHS = 28.4, k_ZHS = 1.0d-7, a_seed_ZHS = 10.0, a_seed_R2 = 10.0
+/
+&options
+  ! model versions (docs: option matrix); these are the corrected model's defaults
+  ph_mode = 'speciation'      ! speciation | zhs_equilibrium (R2Precipitation) | fixed (R2Fixed, pH_fixed) | spline (original PHREEQC fit)
+  pH_fixed = 4.8
+  species = 'with_H'          ! with_H: H_T transported | no_H: H_T held (the original charge line)
+  transport = 'ions'          ! ions: each total with its ion's D | quasi: species fluxes summed per total
+  basis = 'free'              ! Zn, Mn, SO4 in the Nernst and rate terms: free (speciation) | totals
+  R1_on = .true., R2_on = .true., R3_on = .true.
+  zhs = 'kinetic'             ! kinetic | equilibrium | lumped (2024 paper) | off
+  zhs_nucleation = 1.0        ! Zn supersaturation for growth on the seed area (Herrmann: 1.05)
+  ZnO_on = .false., ZnOH2_on = .false.
+  r3_ocp = 'spline_nernst'    ! spline_nernst (empirical OCP, Nernstian ends) | spline | nernst (U3_nernst)
+  r3_end_width = 0.01
+  logk_file = ''              ! log K overrides, 'name value' per line
+  equilibria_db = ''          ! PHREEQC database for the equilibria; '' = Herrmann et al. (2023) Table S1
+/
+&protocol
+  steps = 'cc I=100 Vmin=1.0'     ! mA/g, positive = discharge; GITT: 'cc I=50 t=720; rest t=1800' with cycles = 1000
+  cycles = 1, end_on_cutoff = .true.
+/
+&numerics
+  dt = 10.0
+/
+&output
+  file = 'znmno2_out.txt', write_interval = 60.0
+/

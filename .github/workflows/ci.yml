@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: fortran-lang/setup-fortran@v1
+        with:
+          compiler: gcc
+          version: 14
+      - name: Install bandsolver and this package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "bandsolver @ git+https://github.com/jcbernard87/bandsolver@v0.1.2"
+          python -m pip install -e ".[test,notebooks]" nbconvert ipykernel
+      - name: Build the Fortran and C++ programs
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+          test -x build/fortran/znmno2_f && test -x build/cpp/znmno2_cpp   # the port tests skip without them
+      - name: Lint
+        run: |
+          python -m pip install ruff
+          ruff check python tests scripts
+      - name: Tests
+        run: python -m pytest -q
+      - name: Execute the quick notebooks
+        # the comparison notebooks (03-10) run many full simulations; run them locally
+        run: |
+          for nb in notebooks/01_quickstart.ipynb notebooks/02_model_explained.ipynb; do
+            jupyter nbconvert --to notebook --execute "$nb" --output-dir "$RUNNER_TEMP" --ExecutePreprocessor.timeout=1800
+          done
+
+  windows:
+    # Not yet run: experimental until its first green run, then drop continue-on-error.
+    runs-on: windows-latest
+    continue-on-error: true
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: fortran-lang/setup-fortran@v1
+        with:
+          compiler: gcc
+          version: 13
+      - name: Install bandsolver and this package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "bandsolver @ git+https://github.com/jcbernard87/bandsolver@v0.1.2"
+          python -m pip install -e ".[test]"
+      - name: Build the Fortran and C++ programs (MinGW)
+        run: |
+          cmake -S . -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+      - name: Tests
+        env:
+          ZNMNO2_FORTRAN: build/fortran/znmno2_f.exe
+          ZNMNO2_CPP: build/cpp/znmno2_cpp.exe
+        run: python -m pytest -q

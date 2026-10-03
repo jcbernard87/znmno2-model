@@ -159,13 +159,20 @@ def test_every_parameter_is_documented():
 
 
 def test_versions_agree():
+    """pyproject.toml, __version__, CITATION.cff, CMakeLists.txt and the newest numbered CHANGELOG heading."""
     import re
     from pathlib import Path
     import znmno2_model
     root = Path(__file__).resolve().parents[1]
-    v = re.search(r'^version = "(.+)"', (root / "pyproject.toml").read_text(), re.M).group(1)
-    c = re.search(r"^version: (.+)$", (root / "CITATION.cff").read_text(), re.M).group(1).strip()
-    assert znmno2_model.__version__ == v == c
+
+    def find(path, pattern):
+        return re.search(pattern, (root / path).read_text(), re.M).group(1).strip()
+
+    versions = {"pyproject.toml": find("pyproject.toml", r'^version = "(.+)"'), "__version__": znmno2_model.__version__,
+                "CITATION.cff": find("CITATION.cff", r"^version: (.+)$"),
+                "CMakeLists.txt": find("CMakeLists.txt", r"^project\(\w+ VERSION ([\d.]+)"),
+                "CHANGELOG.md": find("CHANGELOG.md", r"^## ([\d.]+)")}
+    assert len(set(versions.values())) == 1, versions
 
 
 def test_states_and_profiles():

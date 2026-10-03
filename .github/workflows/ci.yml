@@ -44,9 +44,7 @@ jobs:
           done
 
   windows:
-    # Not yet run: experimental until its first green run, then drop continue-on-error.
     runs-on: windows-latest
-    continue-on-error: true
     defaults:
       run:
         shell: bash

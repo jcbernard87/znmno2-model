@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-10-03)
 
 First version.
 
@@ -9,5 +9,5 @@ First version.
 - Faithful ports (Python) of the charge line and the pH-cell line, byte-identical to the original programs.
 - Fortran program (with bandsolver) and self-contained C++ program: the corrected model with every option and the protocol driver, and the faithful ports; the same input file as the Python package. Fortran and C++ write byte-identical output; the faithful ports are byte-identical to the original programs.
 - Driver: a constant-voltage step accepts a collapsed bracket only within 10⁻⁶ V of the set voltage, and proceeds in sub-steps when no current holds the voltage for a whole time step (learnings from lfp-model).
-- Lint (ruff) in CI; an experimental Windows CI job.
+- CI on Linux, macOS and Windows (MinGW), with lint (ruff).
 - Tests: speciation, conservation, Jacobian, limits, cycling and relaxation; the three implementations against each other; convergence study.

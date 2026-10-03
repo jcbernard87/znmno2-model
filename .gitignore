@@ -11,6 +11,7 @@ out/
 *.txt
 !requirements*.txt
 !CMakeLists.txt
+!python/znmno2_model/data/*.txt
 private/
 *.egg-info/
 

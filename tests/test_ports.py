@@ -142,7 +142,11 @@ def test_corrected_agrees_with_python(lang, name, tmp_path, tmp_path_factory):
 def test_corrected_fortran_equals_cpp(name, tmp_path):
     f, _ = _port_table("fortran", name, tmp_path)
     c, _ = _port_table("cpp", name, tmp_path)
-    assert f.read_bytes() == c.read_bytes()
+    fl, cl = f.read_text().splitlines(), c.read_text().splitlines()
+    assert len(fl) == len(cl)
+    for i, (x, y) in enumerate(zip(fl, cl)):
+        cols = [k for k, (u, v) in enumerate(zip(x.split(), y.split())) if u != v]
+        assert x == y, f"row {i}, columns {cols}:\nfortran {x}\nC++     {y}"
 
 
 def test_corrected_with_a_phreeqc_database_and_log_k_overrides(tmp_path):

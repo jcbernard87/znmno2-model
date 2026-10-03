@@ -69,4 +69,4 @@ Default discharge (100 mA/g to 1.0 V), voltage at 25, 50, 100, 140 and 170 mAh/g
 - No comparison with measured cells here: the repository holds no data, and the default parameters are illustrative.
 - Non-ideal activities (not implemented).
 - The quasi-particle transport against an independent implementation; only its limits, its Jacobian and its conservation are tested.
-- The Fortran and C++ programs with compilers other than gfortran 14 and Apple clang / g++ 14, or on Windows.
+- The Fortran and C++ programs with compilers other than those in CI (gfortran 14 with Apple clang on macOS and g++ on Linux; MinGW gfortran/g++ 13 on Windows), e.g. Intel or MSVC.

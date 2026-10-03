@@ -44,7 +44,7 @@ The references (the original sources, their parameter files and outputs) are not
 
 | Check | Cases | Result |
 |---|---|---|
-| Fortran and C++ corrected model, against each other | every option configuration (18), CC-CV, three cycles, a long rest, a physical limit, GITT, a PHREEQC-format database (with and without quasi-particle transport), log K overrides, the full default mesh | output tables **byte-identical** |
+| Fortran and C++ corrected model, against each other | every option configuration (18), CC-CV, three cycles, a long rest, a physical limit, GITT, a PHREEQC-format database (with and without quasi-particle transport), log K overrides, the full default mesh | output tables **byte-identical** on macOS (arm64; gfortran 14, Apple clang) and Windows (MinGW gfortran/g++, CI); on Linux (CI) identical except round-off in near-zero values (e.g. a ZHS volume fraction of 10⁻²⁶ against 2×10⁻¹⁷), checked to 10⁻¹² of each column's scale |
 | Fortran (and C++) against Python, corrected model | the same cases | equal to the printed 8 digits, except values near zero (e.g. a volume fraction of 10⁻²³) and the voltage on the row written at a physical limit (below) |
 | faithful ports, against the original programs | every reference run (5 charge-line, 4 pH-cell), start to finish | output files **byte-identical**, Fortran and C++ (private, `ZNMNO2_ORACLE`) |
 | faithful ports, against the Python faithful ports | the first 1,100 steps of each line | to 10⁻⁶ relative (the installed bandsolver uses fused multiply-adds) |

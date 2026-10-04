@@ -22,6 +22,7 @@
 #include <limits>
 #include <map>
 #include <regex>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -206,6 +207,7 @@ Namelist read_namelist(const std::string& path) {
     for (std::sregex_iterator g(text.begin(), text.end(), group), end; g != end; ++g) {
         const std::string gname = lower((*g)[1]);
         const std::string body = (*g)[2];
+        if (nl.count(gname)) throw std::runtime_error("namelist group &" + gname + " appears twice");
         auto& entries = nl[gname];
         for (std::sregex_iterator e(body.begin(), body.end(), entry); e != end; ++e) {
             std::string val = (*e)[2];
@@ -2835,6 +2837,10 @@ int main(int argc, char** argv) {
     try {
         const std::string input = argc > 1 ? argv[1] : "znmno2.nml";
         const Namelist nl = read_namelist(input);
+        static const std::set<std::string> known = {"run", "faithful", "cell", "solids", "electrolyte", "reactions",
+                                                    "options", "constants", "protocol", "numerics", "output"};
+        for (const auto& kv : nl)
+            if (!known.count(kv.first)) throw std::runtime_error("unknown namelist group &" + kv.first);
         auto get = [&](const std::string& g, const std::string& k, const std::string& def) {
             auto gi = nl.find(g);
             if (gi == nl.end()) return def;

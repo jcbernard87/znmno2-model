@@ -246,3 +246,33 @@ def test_faithful_reproduces_the_original_programs(lang, line, tmp_path):
                 for c, v in row.items() if c.startswith("_")}
         rows = _faithful(lang, line, vals, tmp_path)
         assert rows == ref.read_text().splitlines(), f"{line} run {k}"
+
+
+# ---------------------------------------------------------------------- bad input
+BAD = [
+    ("&options\n  ph_mode = 'speciatio'\n/\n", "ph_mode must be one of"),
+    ("&cell\n  n_sep = 6, foo = 1.0\n/\n", ("foo", "&cell")),                        # unknown name
+    ("&options\n  n_sep = 6\n/\n", ("n_sep", "&options")),                          # name in the wrong group
+    ("&cellz\n  n_sep = 6\n/\n", "unknown namelist group &cellz"),
+    ("&cell\n  n_sep = 6\n/\n&cell\n  n_cath = 8\n/\n", "namelist group &cell appears twice"),
+    ("&protocol\n  steps = 'cx I=1'\n/\n", "unknown step type 'cx'"),
+]
+
+
+@pytest.mark.parametrize("text,msg", BAD)
+@pytest.mark.parametrize("lang", ["fortran", "cpp"])
+def test_programs_reject_bad_input(lang, text, msg, tmp_path):
+    """Each program stops with a non-zero exit and a message naming the problem (#10)."""
+    nml = tmp_path / "bad.nml"
+    nml.write_text(f"&run data_dir = '{DATA}' /\n" + text + "&output file = 'o.txt' /\n")
+    r = subprocess.run([str(_program(lang)), str(nml)], cwd=tmp_path, capture_output=True, text=True)
+    msgs = msg if isinstance(msg, tuple) else (msg,)
+    assert r.returncode != 0 and all(m in r.stdout + r.stderr for m in msgs), r.stdout + r.stderr
+
+
+def test_python_rejects_a_repeated_group(tmp_path):
+    from znmno2_model.namelist import load
+    nml = tmp_path / "bad.nml"
+    nml.write_text("&cell\n  n_sep = 6\n/\n&cell\n  n_cath = 8\n/\n")
+    with pytest.raises(ValueError, match="namelist group &cell appears twice"):
+        load(nml)

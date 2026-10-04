@@ -583,7 +583,8 @@ class Model:
             lam = min(lam, 0.2 / big)
         return lam
 
-    def newton_step(self, old, dt, I, start=None):
+    def newton_step(self, old, dt, I, start=None, history=None):
+        """One backward-Euler step by Newton; `history`, if a list, receives the scaled update of each iteration."""
         p = self.p
         if self.H0 is None:
             self.H0 = old[:, H].copy()
@@ -642,6 +643,8 @@ class Model:
             sc = np.abs(dx) / self.typ
             sc[:, TH] = np.where(in_theta, np.abs(dth), np.abs(dth) * th * om)   # counted by its change in theta
             upd = float(np.max(sc))
+            if history is not None:
+                history.append(upd)
             if not math.isfinite(upd):
                 break
             # converged: a full step, a small update, and a small residual (the residual test catches a

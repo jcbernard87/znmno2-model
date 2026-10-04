@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **Input checks:** the Fortran program rejects an unknown namelist group (it skipped it silently); all three implementations reject a group that appears twice (Fortran read the first, C++ merged them, Python kept the last); the C++ program names an unknown group as such.
+- **Tests:** the programs' rejection of bad input (#10); quadratic Newton convergence (#9). `Model.newton_step` takes an optional `history` list.
+
 ## 0.1.0 (2026-10-03)
 
 First version.

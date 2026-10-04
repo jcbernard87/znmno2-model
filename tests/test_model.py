@@ -195,3 +195,29 @@ def test_electrolyte_without_mnso4():
     p = Params(c_MnSO4=0.0, steps="cc I=100 t=600", dt=60.0, **FAST)
     r = run(p)
     assert r.exit_reason == "duration"
+
+
+def test_newton_converges_quadratically():
+    """From a perturbed iterate of a discharge step the scaled update falls quadratically (5.7e-3, 6.5e-5,
+    2.4e-8, 7e-14 measured; b/a^2 = 2 and 5.7) until the finite-difference source Jacobian's accuracy (relative
+    steps of 1e-7) takes over near 1e-8 (#9)."""
+    from znmno2_model.model import MN, P1, P2, SO, ZN, Model
+    p = Params(**FAST, newton_tol=1e-13)
+    m = Model(p)
+    x = m.initial_state()
+    I = 100e-3 * p.mass
+    for _ in range(10):
+        x = m.newton_step(x, p.dt, I)
+    sol = m.newton_step(x, p.dt, I)
+    rng = np.random.default_rng(3)
+    s = sol.copy()
+    s[:, P1] += 1e-3 * rng.standard_normal(s.shape[0]) * m.cath
+    s[:, P2] += 1e-3 * rng.standard_normal(s.shape[0])
+    for k in (ZN, MN, SO):
+        s[:, k] *= 1 + 1e-3 * rng.standard_normal(s.shape[0])
+    hist = []
+    m.newton_step(x, p.dt, I, start=s, history=hist)
+    assert len(hist) <= 6 and hist[-1] < 1e-12, hist
+    for a, b in zip(hist, hist[1:]):
+        if a > 1e-6:
+            assert b < 20.0 * a ** 2, hist

@@ -153,7 +153,7 @@ def test_initial_state_is_at_open_circuit():
 def test_every_parameter_is_documented():
     from dataclasses import fields
     from pathlib import Path
-    text = (Path(__file__).resolve().parents[1] / "docs" / "parameters.md").read_text()
+    text = (Path(__file__).resolve().parents[1] / "docs" / "parameters.md").read_text(encoding="utf-8")
     for f in fields(Params):
         assert f"| `{f.name}` |" in text, f.name
 
@@ -166,7 +166,7 @@ def test_versions_agree():
     root = Path(__file__).resolve().parents[1]
 
     def find(path, pattern):
-        return re.search(pattern, (root / path).read_text(), re.M).group(1).strip()
+        return re.search(pattern, (root / path).read_text(encoding="utf-8"), re.M).group(1).strip()
 
     versions = {"pyproject.toml": find("pyproject.toml", r'^version = "(.+)"'), "__version__": znmno2_model.__version__,
                 "CITATION.cff": find("CITATION.cff", r"^version: (.+)$"),

@@ -67,7 +67,7 @@ def _run(exe, inp):
 
 # ---------------------------------------------------------------------- parameters
 def _defaults_from(path, pattern):
-    return {m.group(1): m.group(2) for m in re.finditer(pattern, path.read_text(), re.M)}
+    return {m.group(1): m.group(2) for m in re.finditer(pattern, path.read_text(encoding="utf-8"), re.M)}
 
 
 def _same(py, text):
@@ -88,7 +88,7 @@ def test_fortran_and_cpp_parameters_match_python():
     for n in names:
         assert n in f90 and _same(getattr(d, n), f90[n]), f"fortran default of {n}"
         assert n in cpp and _same(getattr(d, n), cpp[n]), f"C++ default of {n}"
-    groups = dict(re.findall(r'\{"(\w+)", "(\w+)"\}', (ROOT / "cpp" / "znmno2.cpp").read_text()))
+    groups = dict(re.findall(r'\{"(\w+)", "(\w+)"\}', (ROOT / "cpp" / "znmno2.cpp").read_text(encoding="utf-8")))
     for g, ns in GROUPS.items():
         for n in ns:
             if n not in EXTRA:

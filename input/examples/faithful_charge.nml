@@ -1,0 +1,17 @@
+! Faithful port of the original charge line (ZnMn02_v3): the original program's run, defects included (docs/deviations.md),
+! with illustrative inputs (the original runs' fitted values are not distributed). With these inputs it
+! ends as the original does, on a NaN ('NaN in cprev'). Fortran and C++ programs
+! only (the Python package's faithful ports are in znmno2_model.faithful). Run from the repository root, or set
+! data_dir to the folder of the spline tables.
+
+&run
+  mode = 'faithful_charge'
+  data_dir = 'python/znmno2_model/data'
+/
+&faithful
+  rxnk_2 = -8.5, rxnk_3 = -7.5, frac_zmcx = 0.4, frac_zmcmax = 0.03, xmax_t = 0.022,
+  applied_current = 0.000121, porosity = 0.8, volfrac_mno2 = 0.07, stated_mass_loading = 0.00121, zhs_ksp = 30
+/
+&output
+  file = 'faithful_charge_out.txt'
+/

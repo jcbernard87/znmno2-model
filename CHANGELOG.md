@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Example inputs** in `input/examples/`: GITT, CC-CV, acid electrolyte with the probe region, and the two faithful lines; tested (#12).
 - **Input checks:** the Fortran program rejects an unknown namelist group (it skipped it silently); all three implementations reject a group that appears twice (Fortran read the first, C++ merged them, Python kept the last); the C++ program names an unknown group as such.
 - **Tests:** the programs' rejection of bad input (#10); quadratic Newton convergence (#9). `Model.newton_step` takes an optional `history` list.
 

@@ -47,6 +47,8 @@ Two of the original research programs are reproduced, defects included, for comp
 
 One Fortran-namelist file, [`input/default.nml`](input/default.nml), read by all three implementations, holds every parameter: geometry, solids, electrolyte, reactions, options, protocol, numerics and output. Every length, porosity and area is an input. [docs/parameters.md](docs/parameters.md) lists each one with its default and meaning.
 
+[`input/examples/`](input/examples) has complete inputs for a GITT discharge (`gitt.nml`), a CC-CV cycle (`cccv.nml`), an acid electrolyte with the probe region (`acid_probe.nml`), and a faithful run of each original line (`faithful_charge.nml`, `faithful_phcell.nml`; Fortran and C++ programs).
+
 ## Documentation
 
 - [docs/model.md](docs/model.md): equations, speciation, reactions, boundaries, discretization and solution

@@ -1,0 +1,15 @@
+! Faithful port of the original pH-cell line (ZnMn02_v2.1_GITT_no_probe): the original program's run, defects included (docs/deviations.md),
+! with illustrative inputs (the original runs' fitted values are not distributed). Fortran and C++ programs
+! only (the Python package's faithful ports are in znmno2_model.faithful). Run from the repository root, or set
+! data_dir to the folder of the spline tables.
+
+&run
+  mode = 'faithful_phcell'
+  data_dir = 'python/znmno2_model/data'
+/
+&faithful
+  rxnk_5 = -9.0, fraction_kmno2 = 0.7
+/
+&output
+  file = 'faithful_phcell_out.txt'
+/

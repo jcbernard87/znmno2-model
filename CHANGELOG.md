@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Driver:** a run that ends at a full (or empty) insertion host writes the state where θ reaches 1 − 10⁻³ (or 10⁻³) instead of the last converged sub-step, whose voltage Newton did not determine (87 mV apart between implementations). Other runs are unchanged (#14).
 - **Example inputs** in `input/examples/`: GITT, CC-CV, acid electrolyte with the probe region, and the two faithful lines; tested (#12).
 - **Input checks:** the Fortran program rejects an unknown namelist group (it skipped it silently); all three implementations reject a group that appears twice (Fortran read the first, C++ merged them, Python kept the last); the C++ program names an unknown group as such.
 - **Tests:** the programs' rejection of bad input (#10); quadratic Newton convergence (#9). `Model.newton_step` takes an optional `history` list.

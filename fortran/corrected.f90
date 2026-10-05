@@ -46,7 +46,7 @@ module zn_corrected
                                             1e-15_dp, 1.0_dp, 1e-15_dp, 1e-15_dp, 1e-15_dp]
     ! driver
     real(dp), parameter :: EVENT_DV = 1.0e-4_dp, MIN_SUBSTEP = 1.0e-10_dp, EVENT_MIN_DT = 1.0e-12_dp, &
-                           CV_TOL = 1.0e-9_dp, CV_ACCEPT = 1.0e-6_dp, LIMIT = 1.0e-3_dp
+                           CV_TOL = 1.0e-9_dp, CV_ACCEPT = 1.0e-6_dp, LIMIT = 1.0e-3_dp, THETA_TOL = 1.0e-6_dp
     integer, parameter :: MAX_FAILURES = 200
 
     ! ------------------------------------------------------------------ model state
@@ -1311,15 +1311,37 @@ contains
         end if
     end function margin_of
 
+    !> Distance to a full host on discharge (theta = 1 - LIMIT) or an empty one on charge (theta = LIMIT), scaled so
+    !> that EVENT_DV is THETA_TOL in theta; negative once crossed, huge if none applies (see Stepper.event_margin).
+    real(dp) function event_margin(xn, I)
+        real(dp), intent(in) :: xn(N,nc), I
+        real(dp) :: thmax, thmin, thj, d
+        integer :: j
+        event_margin = huge(1.0_dp)
+        if (.not. p%R3_on .or. I == 0.0_dp) return
+        thmax = -huge(1.0_dp); thmin = huge(1.0_dp)
+        do j = c0, nc
+            thj = sigmoid(xn(TH,j))
+            thmax = max(thmax, thj); thmin = min(thmin, thj)
+        end do
+        if (I > 0) then
+            d = (1.0_dp - LIMIT) - thmax
+        else
+            d = thmin - LIMIT
+        end if
+        event_margin = d*EVENT_DV/THETA_TOL
+    end function event_margin
+
     !> Advance by dt with backward Euler, halving the sub-step on Newton failure; with a cc step, locate a
     !> cutoff crossing within EVENT_DV. On failure, state and t_done hold the progress made.
-    subroutine advance(state, dt, I, use_margin, st, t_done, stopped, fail)
+    subroutine advance(state, dt, I, use_margin, st, t_done, stopped, fail, host_event)
         real(dp), intent(inout) :: state(N,nc)
         real(dp), intent(in) :: dt, I
         logical, intent(in) :: use_margin
         type(step_t), intent(in) :: st
         real(dp), intent(out) :: t_done
         logical, intent(out) :: stopped, fail
+        logical, intent(in), optional :: host_event      ! locate a full (or empty) host instead of a cutoff
         real(dp) :: hh, new(N,nc), m
         integer :: failures
         t_done = 0.0_dp; hh = dt; failures = 0
@@ -1336,6 +1358,9 @@ contains
             end if
             if (use_margin) then
                 m = margin_of(new, st, I)
+                if (present(host_event)) then
+                    if (host_event) m = event_margin(new, I)
+                end if
                 if (m < 0.0_dp) then
                     if (m < -EVENT_DV .and. hh/2 >= EVENT_MIN_DT) then
                         hh = hh/2
@@ -1499,7 +1524,9 @@ contains
         real(dp), allocatable :: state(:,:), new(:,:)
         real(dp) :: t, mAhg, I, t_step, hh, h_done
         integer :: nsteps, k, n_done
-        logical :: stopped, fail, use_margin
+        logical :: stopped, fail, use_margin, hit, fail2
+        real(dp) :: h_event
+        real(dp), allocatable :: prog(:,:), redo(:,:)
         character(len=32) :: why
         character(len=512) :: file
         real(dp) :: last_write
@@ -1508,7 +1535,7 @@ contains
         out_file = file
         call setup(data_dir)
         call parse_protocol(trim(p%steps), steps, nsteps)
-        allocate(state(N,nc), new(N,nc))
+        allocate(state(N,nc), new(N,nc), prog(N,nc), redo(N,nc))
         open(newunit=ou, file=trim(out_file), status='replace', action='write')
         call write_header()
         call initial_state(state, fail)
@@ -1544,10 +1571,25 @@ contains
                 if (fail) then
                     ! keep the sub-steps completed before the failure: the limit is judged where it was reached
                     if (h_done > 0.0_dp) then
+                        prog = new
+                    else
+                        prog = state
+                    end if
+                    why = limit_reason(prog, I)
+                    if ((why == 'insertion_full' .or. why == 'insertion_empty') .and. steps(k)%kind == 'cc') then
+                        ! the run ends at a full (or empty) host: redo the time step and stop it where the host
+                        ! reaches the limit, a well-determined state (closer to the end the rate no longer depends
+                        ! on 1 - theta, and the voltage is not determined by Newton's tolerance)
+                        redo = state
+                        call advance(redo, hh, I, .true., steps(k), h_event, hit, fail2, host_event=.true.)
+                        if (.not. fail2 .and. hit) then
+                            new = redo; h_done = h_event
+                        end if
+                    end if
+                    if (h_done > 0.0_dp) then
                         mAhg = mAhg + 1000.0_dp*(I/mass)*h_done/3600.0_dp
                         state = new; t = t + h_done; n_done = n_done + 1
                     end if
-                    why = limit_reason(state, I)
                     if (len_trim(why) == 0 .or. p%end_on_cutoff) then
                         if (len_trim(why) == 0) why = 'solver_fail'
                         call finish(why)

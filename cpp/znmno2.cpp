@@ -1703,7 +1703,7 @@ constexpr double RES_TOL = 1e-6, TRACE = 1.0e-9, FB_REF = 1.0e-6;
 constexpr double TYP[N + 1] = {0, 1.0, 1.0, 1e-3, 1e-3, 1e-3, 1e-6, 1e-3, 1e-3, 1.0, 1e-3, 1e-3, 1e-3};
 constexpr double STEP_FLOOR[N + 1] = {0, 1.0, 1.0, 1e-15, 1e-15, 1e-15, 1e-8, 1e-15, 1e-15, 1.0, 1e-15, 1e-15, 1e-15};
 constexpr double EVENT_DV = 1.0e-4, MIN_SUBSTEP = 1.0e-10, EVENT_MIN_DT = 1.0e-12, CV_TOL = 1.0e-9, CV_ACCEPT = 1.0e-6,
-                 LIMIT = 1.0e-3;
+                 LIMIT = 1.0e-3, THETA_TOL = 1.0e-6;
 constexpr int MAX_FAILURES = 200;
 
 struct Failure {};                                  // a step that cannot be solved (Python's SolverFailure)
@@ -2582,8 +2582,23 @@ struct Driver {
         return std::min(v - st.Vmin, st.Vmax - v);
     }
 
-    // returns false on failure; state and t_done hold the progress made
-    bool advance(Mat& state, double dt, double I, bool use_margin, const Step& st, double& t_done, bool& stopped) {
+    // distance to a full host on discharge (theta = 1 - LIMIT) or an empty one on charge (theta = LIMIT), scaled so
+    // that EVENT_DV is THETA_TOL in theta; negative once crossed, huge if none applies (see Stepper.event_margin)
+    double event_margin(const Mat& xn, double I) const {
+        if (!m.p.R3_on || I == 0.0) return std::numeric_limits<double>::max();
+        double th_max = -std::numeric_limits<double>::max(), th_min = std::numeric_limits<double>::max();
+        for (int j = m.c0; j <= m.nc; ++j) {
+            const double th = sigmoid(xn(TH, j));
+            th_max = std::max(th_max, th); th_min = std::min(th_min, th);
+        }
+        const double d = I > 0 ? (1.0 - LIMIT) - th_max : th_min - LIMIT;
+        return d * EVENT_DV / THETA_TOL;
+    }
+
+    // returns false on failure; state and t_done hold the progress made. host_event: locate a full (or empty)
+    // host instead of a voltage cutoff
+    bool advance(Mat& state, double dt, double I, bool use_margin, const Step& st, double& t_done, bool& stopped,
+                 bool host_event = false) {
         t_done = 0.0;
         double hh = dt;
         int failures = 0;
@@ -2600,7 +2615,7 @@ struct Driver {
                 continue;
             }
             if (use_margin) {
-                const double mg = margin_of(nw, st, I);
+                const double mg = host_event ? event_margin(nw, I) : margin_of(nw, st, I);
                 if (mg < 0.0) {
                     if (mg < -EVENT_DV && hh / 2 >= EVENT_MIN_DT) { hh = hh / 2; continue; }
                     state = nw;
@@ -2730,11 +2745,21 @@ struct Driver {
                     if (ok) why = (stopped && m.voltage(nw, I) <= st.Vmin) ? "cutoff_low" : "cutoff_high";
                 }
                 if (!ok) {
+                    // keep the sub-steps completed before the failure: the limit is judged where it was reached
+                    why = m.limit_reason(h_done > 0.0 ? nw : state, I);
+                    if ((why == "insertion_full" || why == "insertion_empty") && st.kind == "cc") {
+                        // the run ends at a full (or empty) host: redo the time step and stop it where the host
+                        // reaches the limit, a well-determined state (closer to the end the rate no longer depends
+                        // on 1 - theta, and the voltage is not determined by Newton's tolerance)
+                        Mat redo = state;
+                        double h_event = 0.0;
+                        bool hit = false;
+                        if (advance(redo, hh, I, true, st, h_event, hit, true) && hit) { nw = redo; h_done = h_event; }
+                    }
                     if (h_done > 0.0) {
                         mAhg = mAhg + 1000.0 * (I / m.mass) * h_done / 3600.0;
                         state = nw; t = t + h_done; ++n_done;
                     }
-                    why = m.limit_reason(state, I);
                     if (why.empty() || p.end_on_cutoff) {
                         if (why.empty()) why = "solver_fail";
                         m.write_row(t, state, mAhg, I, k);

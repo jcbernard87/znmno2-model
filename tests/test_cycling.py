@@ -98,3 +98,17 @@ def test_cv_hold_proceeds_in_sub_steps():
     r = run(p)
     assert r.exit_reason == "end_of_protocol"
     assert abs(r.column("I_mAg")[-1]) <= 5.0 and r.column("V")[-1] == pytest.approx(1.9, abs=1e-6)
+
+
+def test_a_run_that_ends_at_a_full_host_stops_at_the_limit():
+    """A discharge that ends because the insertion host is full (R1, R2 off) reports the state where the fullest
+    cell reaches theta = 1 - 1e-3 (located to 1e-6), not the last state Newton reached, where the rate no longer
+    depends on 1 - theta and the voltage is not determined (#14). Discharges that do not end there (the default)
+    are unchanged."""
+    from znmno2_model.simulate import LIMIT
+    p = Params(steps="cc I=400 Vmin=0.2", R1_on=False, R2_on=False, **FAST)
+    st = Stepper(p)
+    r = run_protocol(st, result=Result())
+    assert r.exit_reason == "insertion_full"
+    th = 1.0 / (1.0 + np.exp(-r.final_state[st.c, 8]))
+    assert th.max() == pytest.approx(1.0 - LIMIT, abs=1e-6)

@@ -41,7 +41,7 @@ A discharge is not stopped by `Vmax`, nor a charge by `Vmin`: with acid in the e
 | `cutoff_low`, `cutoff_high` | a discharge reached `Vmin`, or a charge `Vmax` (single-step protocols, or `end_on_cutoff`) |
 | `duration`, `current_limit` | the last step ended on `t`, or on `Imin` (cv) |
 | `end_of_protocol` | every step completed |
-| `insertion_full`, `insertion_empty` | a time step could not be solved and the insertion host was full (on discharge) or empty (on charge) |
+| `insertion_full`, `insertion_empty` | a time step could not be solved and the insertion host was full (on discharge) or empty (on charge); the step is redone and stopped where θ reaches 1 − 10⁻³ (or 10⁻³), and that state is written (docs/validation.md) |
 | `zinc_depleted`, `manganese_depleted` | … and the electrolyte had run out of Zn²⁺ or Mn²⁺ somewhere |
 | `dissolvable_mno2_exhausted` | … and no MnO₂ or Zn_zMnO₂ was left |
 | `pores_clogged` | … and the cathode porosity had fallen below 10⁻³ |

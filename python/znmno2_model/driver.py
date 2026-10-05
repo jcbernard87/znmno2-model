@@ -37,6 +37,7 @@ MAX_FAILURES = 200        # ... or give up after this many Newton failures withi
 # Physical limits reported as the exit reason when a step cannot be solved
 LIMIT_DEPLETED = 1.0e-3   # electrolyte below this fraction of c_bulk anywhere: 'electrolyte_depleted'
 LIMIT_THETA = 1.0e-3      # particles within this of full (or empty): 'particles_full' / 'particles_empty'
+HOST_LIMITS = ("insertion_full", "insertion_empty")   # exit reasons whose state is relocated to the event
 
 
 def limit_reason(c_min: float, c_bulk: float, theta_min: float, theta_max: float):
@@ -226,11 +227,26 @@ def run_protocol(stepper, *, max_steps: Optional[int] = None, result=None) -> Pr
                     new, h_done, stopped = advance(stepper, state, h, I, margin=margin)
                     why = "cutoff_low" if stopped and stepper.voltage(new, I) <= st.Vmin else "cutoff_high"
             except SolverFailure as e:
+                start = state
                 # keep the sub-steps completed before the failure: the limit is judged where it was reached
-                if getattr(e, "t_done", 0.0) > 0.0:
-                    mAhg = mAhg + 1000.0 * (I / p.mass) * e.t_done / 3600.0
-                    state, t, n_done = e.state, t + e.t_done, n_done + 1
+                t_done = getattr(e, "t_done", 0.0)
+                if t_done > 0.0:
+                    state = e.state
                 why = getattr(stepper, "limit_reason", lambda s, I: None)(state, I)
+                event = getattr(stepper, "event_margin", None)
+                if why in HOST_LIMITS and st.kind == "cc" and event is not None:
+                    # the run ends at a full (or empty) host: redo the time step and stop it where the host
+                    # reaches the limit, a well-determined state (closer to the end the rate no longer depends
+                    # on 1 - theta, and the voltage is not determined by Newton's tolerance)
+                    try:
+                        new, h_event, hit = advance(stepper, start, h, I, margin=lambda sn: event(sn, I))
+                        if hit:
+                            state, t_done = new, h_event
+                    except SolverFailure:
+                        pass
+                if t_done > 0.0:
+                    mAhg = mAhg + 1000.0 * (I / p.mass) * t_done / 3600.0
+                    t, n_done = t + t_done, n_done + 1
                 if why is None or p.end_on_cutoff:
                     return finish(why or "solver_fail", k, I)
                 # a physical limit ends this step, as a cutoff does; the protocol goes on

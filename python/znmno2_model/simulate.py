@@ -1,16 +1,19 @@
 """Running the corrected model: the protocol driver and the output table."""
 from __future__ import annotations
 
+import math
+
 from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
 
-from .driver import run_protocol
+from .driver import EVENT_DV, run_protocol
 from .model import CATH, MN, MO, PROBE, SO, TH, ZH, ZM, ZN, Model, sigmoid
 from .params import Params
 
 LIMIT = 1.0e-3        # a physical limit is reached within this fraction (see Stepper.limit_reason)
+THETA_TOL = 1.0e-6    # a full (or empty) host is located to within this theta, as a cutoff to within EVENT_DV
 
 COLUMNS = ("t_h", "V", "I_mAg", "mAhg", "step", "pH_cath", "pH_probe", "pH_anode", "Zn_cath_M", "Mn_cath_M",
            "S_cath_M", "vf_MnO2", "vf_ZMO", "vf_ZHS", "theta", "i_R1_mAg", "i_R2_mAg", "i_R3_mAg", "eps_cath")
@@ -79,6 +82,17 @@ class Stepper:
         if np.min(m.porosity(x)[c]) < LIMIT:
             return "pores_clogged"
         return None
+
+    def event_margin(self, x, I):
+        """Distance to a full host on discharge (theta = 1 - LIMIT) or an empty one on charge (theta = LIMIT),
+        scaled so that the driver's EVENT_DV is THETA_TOL in theta; negative once crossed, inf if none applies.
+        When a run ends at a host limit, its last step is redone and stopped there (driver.run_protocol): closer
+        to the end the rate no longer depends on 1 - theta (or theta) and the voltage is not determined."""
+        if not self.p.R3_on or I == 0:
+            return math.inf
+        th = sigmoid(x[self.c, TH])
+        d = (1.0 - LIMIT) - th.max() if I > 0 else th.min() - LIMIT
+        return d * EVENT_DV / THETA_TOL
 
     @staticmethod
     def finite(x):

@@ -2011,10 +2011,20 @@ struct Model {
         i3 = a_host * i0 * (std::exp(p.alpha3 * 2.0 * fRT * e3) - std::exp(-(1.0 - p.alpha3) * 2.0 * fRT * e3)) * onoff(p.R3_on);
         r = precipitation(x, fr, ZH, j);
     }
+    // the Zn2+ concentration [mol/L] of cell j in the anode kinetics (options basis)
+    double czn_of(const Mat& x, const Mat& fr, int j) const { return p.basis == "free" ? fr(2, j) : x(ZN, j) * 1e3; }
+    // Zn anode current density [A/cm2] (positive = Zn dissolves) from the first two cells' phi2 [V] and Zn2+ [mol/L],
+    // both extrapolated to the anode face (phi2 linearly, Zn2+ linearly in ln c): second order (#6)
+    double anode_kinetics(double p2a, double p2b, double cza, double czb) const {
+        const double w = dxc[1] / (dxc[1] + dxc[2]);
+        const double p2 = p2a + w * (p2a - p2b);
+        const double lc = std::log(cza) + w * (std::log(cza) - std::log(czb));
+        const double eta = 0.0 - p2 - 0.5 / fRT * lc;
+        return p.F * p.k_an * std::sqrt(std::exp(lc)) * (std::exp(p.alpha_an * 2.0 * fRT * eta) - std::exp(-(1.0 - p.alpha_an) * 2.0 * fRT * eta));
+    }
+    // Zn anode current density [A/cm2] (positive = Zn dissolves) on the first cell's west face
     double anode_current(const Mat& x, const Mat& fr) const {
-        const double czn = p.basis == "free" ? fr(2, 1) : x(ZN, 1) * 1e3;
-        const double eta = 0.0 - x(P2, 1) - 0.5 / fRT * std::log(czn);
-        return p.F * p.k_an * std::sqrt(czn) * (std::exp(p.alpha_an * 2.0 * fRT * eta) - std::exp(-(1.0 - p.alpha_an) * 2.0 * fRT * eta));
+        return anode_kinetics(x(P2, 1), x(P2, 2), czn_of(x, fr, 1), czn_of(x, fr, 2));
     }
     static double d_theta(double s, double s_old) {
         double t, o, t0, o0;
@@ -2072,9 +2082,11 @@ struct Model {
         R(P1, nc) = R(P1, nc) + I;
     }
 
-    Mat sources(const Mat& x, bool warm) {
+    // anode = false leaves out the anode flux into cell 1, which depends on cells 1 and 2 (blocks differentiates it
+    // separately); fr_in: speciation of x
+    Mat sources(const Mat& x, bool warm, bool anode = true, const Mat* fr_in = nullptr) {
         Mat R(N, nc);
-        const Mat fr = free_of(x, warm);
+        const Mat fr = fr_in ? *fr_in : free_of(x, warm);
         const Mat cb = basis_of(x, fr);
         const double n2 = 2.0 - 2.0 * p.z_ZMO;
         for (int j = c0; j <= nc; ++j) {
@@ -2110,7 +2122,7 @@ struct Model {
                 R(ZH, j) = a + b - std::sqrt(a * a + b * b + 1e-20);
             }
         }
-        R(ZN, 1) = R(ZN, 1) - anode_current(x, fr) * area_c[1] / (2.0 * p.F);
+        if (anode) R(ZN, 1) = R(ZN, 1) - anode_current(x, fr) * area_c[1] / (2.0 * p.F);
         return R;
     }
 
@@ -2274,24 +2286,34 @@ struct Model {
         Mat RL, RT;
         Blk BT;
         linear(x, old, dt, I, RL, B);
-        const Mat S0 = sources(x, true);
+        const Mat fr0 = free_of(x, true);
+        Mat S0 = sources(x, true, false, &fr0);
         transport(x, true, RT, A, BT, D);
         for (std::size_t q = 0; q < B.d.size(); ++q) B.d[q] = B.d[q] + BT.d[q];
         Mat hstep(N, nc);
         for (int j = 1; j <= nc; ++j)
             for (int k = 1; k <= N; ++k) hstep(k, j) = 1e-7 * std::max(std::abs(x(k, j)), STEP_FLOOR[k]);
+        // the anode flux into cell 1 depends on cells 1 and 2: differentiated per cell (speciation is local, so each
+        // perturbed speciation below gives both cells' perturbed values)
+        const double ka = -area_c[1] / (2.0 * p.F);
+        const double p2a = x(P2, 1), p2b = x(P2, 2), cza = czn_of(x, fr0, 1), czb = czn_of(x, fr0, 2);
+        const double an0 = anode_kinetics(p2a, p2b, cza, czb);
         const Mat spec_base = spec_x, cT = cache_T, clx = cache_lx;
         const bool sv_base = spec_valid, cv_base = cache_valid;
         for (int k = 1; k <= N; ++k) {
             Mat xp = x;
             for (int j = 1; j <= nc; ++j) xp(k, j) = xp(k, j) + hstep(k, j);
             spec_x = spec_base; spec_valid = sv_base;
-            const Mat Sp = sources(xp, false);
+            const Mat frp = free_of(xp, false);
+            const Mat Sp = sources(xp, false, false, &frp);
             for (int j = 1; j <= nc; ++j)
                 for (int ii = 1; ii <= N; ++ii) B(ii, k, j) = B(ii, k, j) + (Sp(ii, j) - S0(ii, j)) / hstep(k, j);
+            B(ZN, k, 1) = B(ZN, k, 1) + ka * (anode_kinetics(xp(P2, 1), p2b, czn_of(xp, frp, 1), czb) - an0) / hstep(k, 1);
+            D(ZN, k, 1) = D(ZN, k, 1) + ka * (anode_kinetics(p2a, xp(P2, 2), cza, czn_of(xp, frp, 2)) - an0) / hstep(k, 2);
         }
         spec_x = spec_base; spec_valid = sv_base;
         cache_T = cT; cache_lx = clx; cache_valid = cv_base;
+        S0(ZN, 1) = S0(ZN, 1) + ka * an0;
         R = Mat(N, nc);
         for (std::size_t q = 0; q < R.d.size(); ++q) R.d[q] = RL.d[q] + S0.d[q] + RT.d[q];
     }

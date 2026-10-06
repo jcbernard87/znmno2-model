@@ -528,18 +528,34 @@ contains
         r = precipitation(x, fr, ZH, j)
     end subroutine reactions
 
-    !> Zn anode current density [A/cm2] (positive = Zn dissolves) on the first cell's face.
+    !> The Zn2+ concentration [mol/L] of cell j in the anode kinetics (options basis).
+    real(dp) function czn_of(x, fr, j)
+        real(dp), intent(in) :: x(N,nc), fr(4,nc)
+        integer, intent(in) :: j
+        if (p%basis == 'free') then
+            czn_of = fr(2,j)
+        else
+            czn_of = x(ZN,j)*1e3_dp
+        end if
+    end function czn_of
+
+    !> Zn anode current density [A/cm2] (positive = Zn dissolves) from the first two cells' phi2 [V] and Zn2+
+    !> [mol/L], both extrapolated to the anode face (phi2 linearly, Zn2+ linearly in ln c): second order (#6).
+    real(dp) function anode_kinetics(p2a, p2b, cza, czb)
+        real(dp), intent(in) :: p2a, p2b, cza, czb
+        real(dp) :: w, p2, lc, eta
+        w = dxc(1)/(dxc(1) + dxc(2))
+        p2 = p2a + w*(p2a - p2b)
+        lc = log(cza) + w*(log(cza) - log(czb))
+        eta = 0.0_dp - p2 - 0.5_dp/fRT*lc
+        anode_kinetics = p%F*p%k_an*sqrt(exp(lc))*(exp(p%alpha_an*2.0_dp*fRT*eta) &
+                                                   - exp(-(1.0_dp - p%alpha_an)*2.0_dp*fRT*eta))
+    end function anode_kinetics
+
+    !> Zn anode current density [A/cm2] (positive = Zn dissolves) on the first cell's west face.
     real(dp) function anode_current(x, fr)
         real(dp), intent(in) :: x(N,nc), fr(4,nc)
-        real(dp) :: czn, eta
-        if (p%basis == 'free') then
-            czn = fr(2,1)
-        else
-            czn = x(ZN,1)*1e3_dp
-        end if
-        eta = 0.0_dp - x(P2,1) - 0.5_dp/fRT*log(czn)
-        anode_current = p%F*p%k_an*sqrt(czn)*(exp(p%alpha_an*2.0_dp*fRT*eta) &
-                                              - exp(-(1.0_dp - p%alpha_an)*2.0_dp*fRT*eta))
+        anode_current = anode_kinetics(x(P2,1), x(P2,2), czn_of(x, fr, 1), czn_of(x, fr, 2))
     end function anode_current
 
     real(dp) function d_theta(s, s_old)
@@ -620,17 +636,25 @@ contains
         R(P1,nc) = R(P1,nc) + I                      ! the solid current I leaves the last cell
     end subroutine linear
 
-    !> Local nonlinear terms: reactions and precipitation in the cathode, the anode flux into cell 1.
-    subroutine sources(x, warm, R, fail)
+    !> Local nonlinear terms: reactions and precipitation in the cathode, and (unless anode = .false.) the anode
+    !> flux into cell 1, which depends on cells 1 and 2 (blocks differentiates it separately). fr_in: speciation of x.
+    subroutine sources(x, warm, R, fail, anode, fr_in)
         real(dp), intent(in) :: x(N,nc)
         logical, intent(in) :: warm
         real(dp), intent(out) :: R(N,nc)
         logical, intent(out) :: fail
+        logical, intent(in), optional :: anode
+        real(dp), intent(in), optional :: fr_in(4,nc)
         real(dp) :: fr(4,nc), cb(4,nc), i1, i2, i3, r_zhs, n2, xi1, xi2, xi3, rk(N), dzn, dso, dh, vc, a, b
         integer :: j, q, k
         R = 0
-        call free_of(x, warm, fr, fail)
-        if (fail) return
+        if (present(fr_in)) then
+            fr = fr_in
+            fail = .false.
+        else
+            call free_of(x, warm, fr, fail)
+            if (fail) return
+        end if
         call basis_of(x, fr, cb)
         n2 = 2.0_dp - 2.0_dp*p%z_ZMO
         do j = c0, nc
@@ -673,6 +697,9 @@ contains
                 R(ZH,j) = a + b - sqrt(a*a + b*b + 1e-20_dp)
             end if
         end do
+        if (present(anode)) then
+            if (.not. anode) return
+        end if
         R(ZN,1) = R(ZN,1) - anode_current(x, fr)*area_c(1)/(2.0_dp*p%F)
     end subroutine sources
 
@@ -877,10 +904,13 @@ contains
         logical, intent(out) :: fail
         real(dp) :: RL(N,nc), S0(N,nc), RT(N,nc), BT(N,N,nc), hstep(N,nc), xp(N,nc), Sp(N,nc)
         real(dp) :: spec_base(4,nc), cT(4,nc), clx(4,nc)
+        real(dp) :: fr0(4,nc), frp(4,nc), ka, an0, p2a, p2b, cza, czb
         logical :: sv_base, cv_base
         integer :: j, k, ii
         call linear(x, old, dt, I, RL, B)
-        call sources(x, .true., S0, fail)
+        call free_of(x, .true., fr0, fail)
+        if (fail) return
+        call sources(x, .true., S0, fail, anode=.false., fr_in=fr0)
         if (fail) return
         call transport(x, .true., RT, A, BT, D, fail)
         if (fail) return
@@ -890,22 +920,32 @@ contains
                 hstep(k,j) = 1e-7_dp*max(abs(x(k,j)), STEP_FLOOR(k))
             end do
         end do
+        ! the anode flux into cell 1 depends on cells 1 and 2: differentiated per cell (speciation is local, so
+        ! each perturbed speciation below gives both cells' perturbed values)
+        ka = -area_c(1)/(2.0_dp*p%F)
+        p2a = x(P2,1); p2b = x(P2,2); cza = czn_of(x, fr0, 1); czb = czn_of(x, fr0, 2)
+        an0 = anode_kinetics(p2a, p2b, cza, czb)
         spec_base = spec_x; sv_base = spec_valid
         cT = cache_T; clx = cache_lx; cv_base = cache_valid
         do k = 1, N
             xp = x
             xp(k,:) = xp(k,:) + hstep(k,:)
             spec_x = spec_base; spec_valid = sv_base
-            call sources(xp, .false., Sp, fail)
+            call free_of(xp, .false., frp, fail)
+            if (fail) return
+            call sources(xp, .false., Sp, fail, anode=.false., fr_in=frp)
             if (fail) return
             do j = 1, nc
                 do ii = 1, N
                     B(ii,k,j) = B(ii,k,j) + (Sp(ii,j) - S0(ii,j))/hstep(k,j)
                 end do
             end do
+            B(ZN,k,1) = B(ZN,k,1) + ka*(anode_kinetics(xp(P2,1), p2b, czn_of(xp, frp, 1), czb) - an0)/hstep(k,1)
+            D(ZN,k,1) = D(ZN,k,1) + ka*(anode_kinetics(p2a, xp(P2,2), cza, czn_of(xp, frp, 2)) - an0)/hstep(k,2)
         end do
         spec_x = spec_base; spec_valid = sv_base
         cache_T = cT; cache_lx = clx; cache_valid = cv_base
+        S0(ZN,1) = S0(ZN,1) + ka*an0
         R = RL + S0 + RT
     end subroutine blocks
 

@@ -102,7 +102,7 @@ The sources conserve Zn, Mn, S and H exactly; charge is conserved because electr
 
 ## 7. Boundaries
 
-- **Zn anode (x = 0):** Butler–Volmer, `i_an = F k_an √c_Zn [exp(2α f η) − exp(−2(1−α) f η)]` with `η = 0 − φ₂ − (1/2f) ln c_Zn`, using the first cell's values. This is first order in the cell width: 3 µV at the default mesh (see [validation.md](validation.md)). Zn²⁺ enters at `i_an A/(2F)`; the other species have no flux. The anode metal is the potential reference, so the cell voltage is φ₁ at the collector face.
+- **Zn anode (x = 0):** Butler–Volmer, `i_an = F k_an √c_Zn [exp(2α f η) − exp(−2(1−α) f η)]` with `η = 0 − φ₂ − (1/2f) ln c_Zn`, with φ₂ and c_Zn²⁺ extrapolated to the anode face from the first two cells (φ₂ linearly, c_Zn²⁺ linearly in ln c, so it stays positive). This makes the boundary second order in the cell width, like the interior (see [validation.md](validation.md)). Zn²⁺ enters at `i_an A/(2F)`; the other species have no flux. The anode metal is the potential reference, so the cell voltage is φ₁ at the collector face.
 - **Current collector:** the solid current `I` (total, A) leaves; no species flux.
 - **Separator/cathode face:** no solid current.
 

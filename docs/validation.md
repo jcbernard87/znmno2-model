@@ -61,7 +61,7 @@ The test suite runs shortened versions of the corrected-model cases (a 30-minute
 Default discharge (100 mA/g to 1.0 V), voltage at 25, 50, 100, 140 and 170 mAh/g:
 
 - **Time:** first order (backward Euler). At 170 mAh/g the error halves with Δt: 3.9×10⁻⁵, 1.9×10⁻⁵, 9.7×10⁻⁶ V for Δt = 10, 5, 2.5 s. The default Δt = 10 s is within about 8×10⁻⁵ V of the converged curve; the pH within 10⁻⁵.
-- **Space:** observed first order, 2.0×10⁻⁶ → 1.0×10⁻⁶ V from mesh ×1 to ×2 to ×4. This comes entirely from the anode boundary, whose kinetics use the first cell's centre values: refining only the probe region changes the voltage by 3.1×10⁻⁶ V, refining the separator and cathode by 7×10⁻⁸ V (the interior scheme is second order).
+- **Space:** second order (observed 1.99–2.00 at every capacity). Differences from mesh ×1 to ×2 are 2×10⁻⁸ to 1.3×10⁻⁷ V up to 140 mAh/g and 2.1×10⁻⁶ V at 170 mAh/g, where the curve is steep; the default mesh is within 4/3 of that of the converged curve. The anode kinetics use φ₂ and c_Zn²⁺ extrapolated to the anode face (#6); with the first cell's centre values, as before v0.3.0, the boundary made the voltage first order (2.0×10⁻⁶ → 1.0×10⁻⁶ V from ×1 to ×2 to ×4).
 - The capacity at the cutoff is the same for every mesh and time step (the cutoff is located to 0.1 mV).
 
 ## Not checked

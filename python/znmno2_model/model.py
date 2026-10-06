@@ -339,13 +339,25 @@ class Model:
         i3 = self.a_host * i0 * (np.exp(p.alpha3 * 2.0 * f * e3) - np.exp(-(1.0 - p.alpha3) * 2.0 * f * e3)) * p.R3_on
         return i1, i2, i3, self.precipitation(x, free, ZH)
 
+    def _czn(self, x, free, j):
+        """The Zn2+ concentration [mol/L] of cell j in the anode kinetics (options basis)."""
+        return free[j, 1] if self.p.basis == "free" else x[j, ZN] * 1e3
+
+    def anode_kinetics(self, p2a, p2b, cza, czb):
+        """Zn anode current density [A/cm2] (positive = Zn dissolves) from the first two cells' phi2 [V] and Zn2+
+        [mol/L]: both are extrapolated to the anode face (phi2 linearly, Zn2+ linearly in ln c, so it stays
+        positive), which makes the boundary second order in space (#6)."""
+        p, f, m = self.p, self.f, self.mesh
+        w = m.dx[0] / (m.dx[0] + m.dx[1])
+        p2 = p2a + w * (p2a - p2b)
+        lc = np.log(cza) + w * (np.log(cza) - np.log(czb))
+        eta = 0.0 - p2 - 0.5 / f * lc
+        return p.F * p.k_an * np.sqrt(np.exp(lc)) * (np.exp(p.alpha_an * 2.0 * f * eta)
+                                                     - np.exp(-(1.0 - p.alpha_an) * 2.0 * f * eta))
+
     def anode_current(self, x, free):
-        """Zn anode current density [A/cm2] (positive = Zn dissolves) on the first cell's face."""
-        p, f = self.p, self.f
-        czn = free[0, 1] if p.basis == "free" else x[0, ZN] * 1e3
-        eta = 0.0 - x[0, P2] - 0.5 / f * np.log(czn)
-        return p.F * p.k_an * np.sqrt(czn) * (np.exp(p.alpha_an * 2.0 * f * eta)
-                                              - np.exp(-(1.0 - p.alpha_an) * 2.0 * f * eta))
+        """Zn anode current density [A/cm2] (positive = Zn dissolves) on the first cell's west face."""
+        return self.anode_kinetics(x[0, P2], x[1, P2], self._czn(x, free, 0), self._czn(x, free, 1))
 
     @staticmethod
     def d_theta(s, s_old):
@@ -402,12 +414,14 @@ class Model:
         R[-1, P1] += I                                   # the solid current I leaves the last cell
         return R, J
 
-    def sources(self, x, warm=True):
-        """Local nonlinear terms (n, N): reactions and precipitation in the cathode, the anode flux into cell 0."""
+    def sources(self, x, warm=True, anode=True, free=None):
+        """Local nonlinear terms (n, N): reactions and precipitation in the cathode, and (anode) the anode flux into
+        cell 0, which depends on cells 0 and 1 (blocks differentiates it separately). `free`: speciation of x."""
         p, m = self.p, self.mesh
         F = p.F
         R = np.zeros((m.n, N))
-        free = self.free(x, warm=warm)
+        if free is None:
+            free = self.free(x, warm=warm)
         c = self.cath
         vc = (m.area * m.dx)[c]
         i1, i2, i3, r = self.reactions(x, free)
@@ -438,7 +452,8 @@ class Model:
         if p.zhs == "equilibrium":                       # n_ZHS >= 0, w <= 1, n_ZHS (1 - w) = 0 (Fischer-Burmeister)
             a, b = x[c, ZH] / FB_REF, 1.0 - self.zhs_w(free)
             R[c, ZH] = a + b - np.sqrt(a * a + b * b + 1e-20)
-        R[0, ZN] -= self.anode_current(x, free) * m.area[0] / (2.0 * F)
+        if anode:
+            R[0, ZN] -= self.anode_current(x, free) * m.area[0] / (2.0 * F)
         return R
 
     def local(self, x, old, dt, I, warm=True):
@@ -556,17 +571,27 @@ class Model:
 
     def blocks(self, x, old, dt, I):
         RL, B = self.linear(x, old, dt, I)
-        S0 = self.sources(x)
+        free = self.free(x)
+        S0 = self.sources(x, anode=False, free=free)
         RT, A, BT, D = self.transport(x, jacobian=True)
         B = B + BT
         h = self._steps(x)
+        # the anode flux into cell 0 depends on cells 0 and 1: differentiated per cell (speciation is local, so
+        # each perturbed speciation below gives both cells' perturbed values)
+        ka = -self.mesh.area[0] / (2.0 * self.p.F)
+        p2a, p2b, cza, czb = x[0, P2], x[1, P2], self._czn(x, free, 0), self._czn(x, free, 1)
+        an0 = self.anode_kinetics(p2a, p2b, cza, czb)
         spec_base, cache = self._spec_x, self._cache
         for k in range(N):
             xp = x.copy()
             xp[:, k] += h[:, k]
             self._spec_x = spec_base
-            B[:, :, k] += (self.sources(xp, warm=False) - S0) / h[:, k][:, None]
+            free_p = self.free(xp, warm=False)
+            B[:, :, k] += (self.sources(xp, warm=False, anode=False, free=free_p) - S0) / h[:, k][:, None]
+            B[0, ZN, k] += ka * (self.anode_kinetics(xp[0, P2], p2b, self._czn(xp, free_p, 0), czb) - an0) / h[0, k]
+            D[0, ZN, k] += ka * (self.anode_kinetics(p2a, xp[1, P2], cza, self._czn(xp, free_p, 1)) - an0) / h[1, k]
         self._spec_x, self._cache = spec_base, cache
+        S0[0, ZN] += ka * an0
         return RL + S0 + RT, A, B, D
 
     def _damping(self, x, dx):

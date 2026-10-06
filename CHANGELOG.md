@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Anode boundary at second order** (all three implementations; #6): the Zn anode kinetics use φ₂ and c_Zn²⁺ extrapolated to the anode face instead of the first cell's centre values, with the matching Jacobian terms. The voltage now converges at second order in space (it was first order); the default output changes by up to about 3 µV (more near the end of a discharge).
 - **Adaptive time stepping** (all three implementations; #7): `dt_mode = 'adaptive'` chooses each time step from backward Euler's local error estimate (linear predictor), against `rtol` and `atol` (scaled by each variable's size), within `dt_min` and `dt_max`; steps land on the output times. Fortran and C++ take the same steps. The default stays `dt_mode = 'fixed'`, so existing inputs give the same output.
 
 ## 0.2.0 (2026-10-05)

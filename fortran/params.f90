@@ -109,6 +109,11 @@ module zn_params
         real(dp) :: write_interval = 60.0_dp               ! [s]
         real(dp) :: newton_tol = 1e-09_dp                  ! Newton update tolerance (scaled)
         integer :: newton_max_iter = 30                    ! Newton iterations per (sub-)step
+        character(len=512) :: dt_mode = 'fixed'            ! fixed: steps of dt | adaptive: chosen from the local error (docs/protocol.md)
+        real(dp) :: rtol = 1e-04_dp                        ! adaptive: relative local error tolerance
+        real(dp) :: atol = 1e-04_dp                        ! adaptive: absolute tolerance, relative to each variable's scale
+        real(dp) :: dt_min = 1e-06_dp                      ! adaptive: smallest step [s]
+        real(dp) :: dt_max = 0.0_dp                        ! adaptive: largest step [s]; 0: write_interval
     end type params_t
 
 contains
@@ -131,10 +136,10 @@ contains
         real(dp) :: V_at_zmin, V_at_zmax, c_ref3, k_an, alpha_an, logK_ZHS, k_ZHS, a_seed_ZHS
         real(dp) :: pH_fixed, zhs_nucleation, logK_ZnO, logK_ZnOH2, k_ZnO, k_ZnOH2, M_ZnO, rho_ZnO
         real(dp) :: M_ZnOH2, rho_ZnOH2, r3_end_width, U3_nernst, D_OH, D_HSO4, D_complex, R
-        real(dp) :: T, F, V_min, V_max, dt, newton_tol, write_interval
+        real(dp) :: T, F, V_min, V_max, dt, newton_tol, write_interval, rtol, atol, dt_min, dt_max
         integer :: n_probe, n_sep, n_cath, cycles, newton_max_iter
         character(len=512) :: ph_mode, species, transport, basis, zhs, r3_ocp, logk_file, equilibria_db
-        character(len=512) :: steps
+        character(len=512) :: steps, dt_mode
         logical :: R1_on, R2_on, R3_on, ZnO_on, ZnOH2_on, end_on_cutoff
         namelist /cell/ A_cell, L_probe, eps_probe, tau_probe, L_sep, eps_sep, tau_factor_sep, bruggeman_sep, &
             L_cath, eps_cath, tau_factor_cath, bruggeman_cath, n_probe, n_sep, n_cath, sigma
@@ -148,7 +153,7 @@ contains
             rho_ZnOH2, r3_ocp, r3_end_width, U3_nernst, logk_file, equilibria_db, D_OH, D_HSO4, D_complex
         namelist /constants/ R, T, F
         namelist /protocol/ steps, cycles, end_on_cutoff, V_min, V_max
-        namelist /numerics/ dt, newton_tol, newton_max_iter
+        namelist /numerics/ dt, newton_tol, newton_max_iter, dt_mode, rtol, atol, dt_min, dt_max
         namelist /output/ file, write_interval
 
         A_cell = p%A_cell; L_probe = p%L_probe; eps_probe = p%eps_probe; tau_probe = p%tau_probe
@@ -176,6 +181,7 @@ contains
         T = p%T; F = p%F; steps = p%steps; cycles = p%cycles
         end_on_cutoff = p%end_on_cutoff; V_min = p%V_min; V_max = p%V_max; dt = p%dt
         newton_tol = p%newton_tol; newton_max_iter = p%newton_max_iter; write_interval = p%write_interval
+        dt_mode = p%dt_mode; rtol = p%rtol; atol = p%atol; dt_min = p%dt_min; dt_max = p%dt_max
         file = 'znmno2_out.txt'
         do g = 1, size(groups)
             rewind(u)
@@ -220,12 +226,14 @@ contains
         p%T = T; p%F = F; p%steps = steps; p%cycles = cycles
         p%end_on_cutoff = end_on_cutoff; p%V_min = V_min; p%V_max = V_max; p%dt = dt
         p%newton_tol = newton_tol; p%newton_max_iter = newton_max_iter; p%write_interval = write_interval
+        p%dt_mode = dt_mode; p%rtol = rtol; p%atol = atol; p%dt_min = dt_min; p%dt_max = dt_max
         call check(p%ph_mode, [character(len=16) :: 'speciation', 'zhs_equilibrium', 'fixed', 'spline'], 'ph_mode')
         call check(p%species, [character(len=16) :: 'with_H', 'no_H'], 'species')
         call check(p%transport, [character(len=16) :: 'ions', 'quasi'], 'transport')
         call check(p%basis, [character(len=16) :: 'free', 'totals'], 'basis')
         call check(p%zhs, [character(len=16) :: 'kinetic', 'equilibrium', 'lumped', 'off'], 'zhs')
         call check(p%r3_ocp, [character(len=16) :: 'spline_nernst', 'spline', 'nernst'], 'r3_ocp')
+        call check(p%dt_mode, [character(len=16) :: 'fixed', 'adaptive'], 'dt_mode')
     contains
         subroutine check(val, allowed, name)
             character(len=*), intent(in) :: val, allowed(:), name

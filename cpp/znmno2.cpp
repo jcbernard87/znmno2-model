@@ -1223,6 +1223,11 @@ struct Params {
     double write_interval = 60.0;             // [s]
     double newton_tol = 1e-09;                // Newton update tolerance (scaled)
     int newton_max_iter = 30;                 // Newton iterations per (sub-)step
+    std::string dt_mode = "fixed";            // fixed: steps of dt | adaptive: chosen from the local error (docs/protocol.md)
+    double rtol = 1e-04;                      // adaptive: relative local error tolerance
+    double atol = 1e-04;                      // adaptive: absolute tolerance, relative to each variable's scale
+    double dt_min = 1e-06;                    // adaptive: smallest step [s]
+    double dt_max = 0.0;                      // adaptive: largest step [s]; 0: write_interval
 };
 
 // namelist name (lower case) -> field, and the group it belongs to
@@ -1233,11 +1238,11 @@ struct Fields {
     std::map<std::string, std::string*> strs;
     std::map<std::string, std::string> group;
     explicit Fields(Params& p) {
-        reals = {{"a_cell", &p.A_cell}, {"l_probe", &p.L_probe}, {"eps_probe", &p.eps_probe}, {"tau_probe", &p.tau_probe}, {"l_sep", &p.L_sep}, {"eps_sep", &p.eps_sep}, {"tau_factor_sep", &p.tau_factor_sep}, {"bruggeman_sep", &p.bruggeman_sep}, {"l_cath", &p.L_cath}, {"eps_cath", &p.eps_cath}, {"tau_factor_cath", &p.tau_factor_cath}, {"bruggeman_cath", &p.bruggeman_cath}, {"sigma", &p.sigma}, {"vf_mno2", &p.vf_MnO2}, {"vf_zmo", &p.vf_ZMO}, {"vf_host", &p.vf_host}, {"vf_zhs", &p.vf_ZHS}, {"m_mno2", &p.M_MnO2}, {"rho_mno2", &p.rho_MnO2}, {"rho_zmo", &p.rho_ZMO}, {"rho_host", &p.rho_host}, {"m_zhs", &p.M_ZHS}, {"rho_zhs", &p.rho_ZHS}, {"r_mno2", &p.r_MnO2}, {"r_zmo", &p.r_ZMO}, {"r_host", &p.r_host}, {"r_zhs", &p.r_ZHS}, {"z_zmo", &p.z_ZMO}, {"zmin", &p.zmin}, {"zmax", &p.zmax}, {"theta0", &p.theta0}, {"mass_am", &p.mass_AM}, {"c_znso4", &p.c_ZnSO4}, {"c_mnso4", &p.c_MnSO4}, {"c_h2so4", &p.c_H2SO4}, {"d_zn", &p.D_Zn}, {"d_mn", &p.D_Mn}, {"d_so4", &p.D_SO4}, {"d_h", &p.D_H}, {"u1", &p.U1}, {"k1", &p.k1}, {"alpha1", &p.alpha1}, {"u2", &p.U2}, {"k2", &p.k2}, {"alpha2", &p.alpha2}, {"a_seed_r2", &p.a_seed_R2}, {"k3", &p.k3}, {"alpha3", &p.alpha3}, {"v_at_zmin", &p.V_at_zmin}, {"v_at_zmax", &p.V_at_zmax}, {"c_ref3", &p.c_ref3}, {"k_an", &p.k_an}, {"alpha_an", &p.alpha_an}, {"logk_zhs", &p.logK_ZHS}, {"k_zhs", &p.k_ZHS}, {"a_seed_zhs", &p.a_seed_ZHS}, {"ph_fixed", &p.pH_fixed}, {"zhs_nucleation", &p.zhs_nucleation}, {"logk_zno", &p.logK_ZnO}, {"logk_znoh2", &p.logK_ZnOH2}, {"k_zno", &p.k_ZnO}, {"k_znoh2", &p.k_ZnOH2}, {"m_zno", &p.M_ZnO}, {"rho_zno", &p.rho_ZnO}, {"m_znoh2", &p.M_ZnOH2}, {"rho_znoh2", &p.rho_ZnOH2}, {"r3_end_width", &p.r3_end_width}, {"u3_nernst", &p.U3_nernst}, {"d_oh", &p.D_OH}, {"d_hso4", &p.D_HSO4}, {"d_complex", &p.D_complex}, {"r", &p.R}, {"t", &p.T}, {"f", &p.F}, {"v_min", &p.V_min}, {"v_max", &p.V_max}, {"dt", &p.dt}, {"write_interval", &p.write_interval}, {"newton_tol", &p.newton_tol}};
+        reals = {{"a_cell", &p.A_cell}, {"l_probe", &p.L_probe}, {"eps_probe", &p.eps_probe}, {"tau_probe", &p.tau_probe}, {"l_sep", &p.L_sep}, {"eps_sep", &p.eps_sep}, {"tau_factor_sep", &p.tau_factor_sep}, {"bruggeman_sep", &p.bruggeman_sep}, {"l_cath", &p.L_cath}, {"eps_cath", &p.eps_cath}, {"tau_factor_cath", &p.tau_factor_cath}, {"bruggeman_cath", &p.bruggeman_cath}, {"sigma", &p.sigma}, {"vf_mno2", &p.vf_MnO2}, {"vf_zmo", &p.vf_ZMO}, {"vf_host", &p.vf_host}, {"vf_zhs", &p.vf_ZHS}, {"m_mno2", &p.M_MnO2}, {"rho_mno2", &p.rho_MnO2}, {"rho_zmo", &p.rho_ZMO}, {"rho_host", &p.rho_host}, {"m_zhs", &p.M_ZHS}, {"rho_zhs", &p.rho_ZHS}, {"r_mno2", &p.r_MnO2}, {"r_zmo", &p.r_ZMO}, {"r_host", &p.r_host}, {"r_zhs", &p.r_ZHS}, {"z_zmo", &p.z_ZMO}, {"zmin", &p.zmin}, {"zmax", &p.zmax}, {"theta0", &p.theta0}, {"mass_am", &p.mass_AM}, {"c_znso4", &p.c_ZnSO4}, {"c_mnso4", &p.c_MnSO4}, {"c_h2so4", &p.c_H2SO4}, {"d_zn", &p.D_Zn}, {"d_mn", &p.D_Mn}, {"d_so4", &p.D_SO4}, {"d_h", &p.D_H}, {"u1", &p.U1}, {"k1", &p.k1}, {"alpha1", &p.alpha1}, {"u2", &p.U2}, {"k2", &p.k2}, {"alpha2", &p.alpha2}, {"a_seed_r2", &p.a_seed_R2}, {"k3", &p.k3}, {"alpha3", &p.alpha3}, {"v_at_zmin", &p.V_at_zmin}, {"v_at_zmax", &p.V_at_zmax}, {"c_ref3", &p.c_ref3}, {"k_an", &p.k_an}, {"alpha_an", &p.alpha_an}, {"logk_zhs", &p.logK_ZHS}, {"k_zhs", &p.k_ZHS}, {"a_seed_zhs", &p.a_seed_ZHS}, {"ph_fixed", &p.pH_fixed}, {"zhs_nucleation", &p.zhs_nucleation}, {"logk_zno", &p.logK_ZnO}, {"logk_znoh2", &p.logK_ZnOH2}, {"k_zno", &p.k_ZnO}, {"k_znoh2", &p.k_ZnOH2}, {"m_zno", &p.M_ZnO}, {"rho_zno", &p.rho_ZnO}, {"m_znoh2", &p.M_ZnOH2}, {"rho_znoh2", &p.rho_ZnOH2}, {"r3_end_width", &p.r3_end_width}, {"u3_nernst", &p.U3_nernst}, {"d_oh", &p.D_OH}, {"d_hso4", &p.D_HSO4}, {"d_complex", &p.D_complex}, {"r", &p.R}, {"t", &p.T}, {"f", &p.F}, {"v_min", &p.V_min}, {"v_max", &p.V_max}, {"dt", &p.dt}, {"write_interval", &p.write_interval}, {"newton_tol", &p.newton_tol}, {"rtol", &p.rtol}, {"atol", &p.atol}, {"dt_min", &p.dt_min}, {"dt_max", &p.dt_max}};
         ints = {{"n_probe", &p.n_probe}, {"n_sep", &p.n_sep}, {"n_cath", &p.n_cath}, {"cycles", &p.cycles}, {"newton_max_iter", &p.newton_max_iter}};
         bools = {{"r1_on", &p.R1_on}, {"r2_on", &p.R2_on}, {"r3_on", &p.R3_on}, {"zno_on", &p.ZnO_on}, {"znoh2_on", &p.ZnOH2_on}, {"end_on_cutoff", &p.end_on_cutoff}};
-        strs = {{"ph_mode", &p.ph_mode}, {"species", &p.species}, {"transport", &p.transport}, {"basis", &p.basis}, {"zhs", &p.zhs}, {"r3_ocp", &p.r3_ocp}, {"logk_file", &p.logk_file}, {"equilibria_db", &p.equilibria_db}, {"steps", &p.steps}};
-        group = {{"mode", "run"}, {"data_dir", "run"}, {"a_cell", "cell"}, {"l_probe", "cell"}, {"eps_probe", "cell"}, {"tau_probe", "cell"}, {"l_sep", "cell"}, {"eps_sep", "cell"}, {"tau_factor_sep", "cell"}, {"bruggeman_sep", "cell"}, {"l_cath", "cell"}, {"eps_cath", "cell"}, {"tau_factor_cath", "cell"}, {"bruggeman_cath", "cell"}, {"n_probe", "cell"}, {"n_sep", "cell"}, {"n_cath", "cell"}, {"sigma", "cell"}, {"vf_mno2", "solids"}, {"vf_zmo", "solids"}, {"vf_host", "solids"}, {"vf_zhs", "solids"}, {"m_mno2", "solids"}, {"rho_mno2", "solids"}, {"rho_zmo", "solids"}, {"rho_host", "solids"}, {"m_zhs", "solids"}, {"rho_zhs", "solids"}, {"r_mno2", "solids"}, {"r_zmo", "solids"}, {"r_host", "solids"}, {"r_zhs", "solids"}, {"z_zmo", "solids"}, {"zmin", "solids"}, {"zmax", "solids"}, {"theta0", "solids"}, {"mass_am", "solids"}, {"c_znso4", "electrolyte"}, {"c_mnso4", "electrolyte"}, {"c_h2so4", "electrolyte"}, {"d_zn", "electrolyte"}, {"d_mn", "electrolyte"}, {"d_so4", "electrolyte"}, {"d_h", "electrolyte"}, {"u1", "reactions"}, {"k1", "reactions"}, {"alpha1", "reactions"}, {"u2", "reactions"}, {"k2", "reactions"}, {"alpha2", "reactions"}, {"a_seed_r2", "reactions"}, {"k3", "reactions"}, {"alpha3", "reactions"}, {"v_at_zmin", "reactions"}, {"v_at_zmax", "reactions"}, {"c_ref3", "reactions"}, {"k_an", "reactions"}, {"alpha_an", "reactions"}, {"logk_zhs", "reactions"}, {"k_zhs", "reactions"}, {"a_seed_zhs", "reactions"}, {"ph_mode", "options"}, {"ph_fixed", "options"}, {"species", "options"}, {"transport", "options"}, {"basis", "options"}, {"r1_on", "options"}, {"r2_on", "options"}, {"r3_on", "options"}, {"zhs", "options"}, {"zhs_nucleation", "options"}, {"zno_on", "options"}, {"znoh2_on", "options"}, {"logk_zno", "options"}, {"logk_znoh2", "options"}, {"k_zno", "options"}, {"k_znoh2", "options"}, {"m_zno", "options"}, {"rho_zno", "options"}, {"m_znoh2", "options"}, {"rho_znoh2", "options"}, {"r3_ocp", "options"}, {"r3_end_width", "options"}, {"u3_nernst", "options"}, {"logk_file", "options"}, {"equilibria_db", "options"}, {"d_oh", "options"}, {"d_hso4", "options"}, {"d_complex", "options"}, {"r", "constants"}, {"t", "constants"}, {"f", "constants"}, {"steps", "protocol"}, {"cycles", "protocol"}, {"end_on_cutoff", "protocol"}, {"v_min", "protocol"}, {"v_max", "protocol"}, {"dt", "numerics"}, {"newton_tol", "numerics"}, {"newton_max_iter", "numerics"}, {"file", "output"}, {"write_interval", "output"}};
+        strs = {{"ph_mode", &p.ph_mode}, {"species", &p.species}, {"transport", &p.transport}, {"basis", &p.basis}, {"zhs", &p.zhs}, {"r3_ocp", &p.r3_ocp}, {"logk_file", &p.logk_file}, {"equilibria_db", &p.equilibria_db}, {"steps", &p.steps}, {"dt_mode", &p.dt_mode}};
+        group = {{"mode", "run"}, {"data_dir", "run"}, {"a_cell", "cell"}, {"l_probe", "cell"}, {"eps_probe", "cell"}, {"tau_probe", "cell"}, {"l_sep", "cell"}, {"eps_sep", "cell"}, {"tau_factor_sep", "cell"}, {"bruggeman_sep", "cell"}, {"l_cath", "cell"}, {"eps_cath", "cell"}, {"tau_factor_cath", "cell"}, {"bruggeman_cath", "cell"}, {"n_probe", "cell"}, {"n_sep", "cell"}, {"n_cath", "cell"}, {"sigma", "cell"}, {"vf_mno2", "solids"}, {"vf_zmo", "solids"}, {"vf_host", "solids"}, {"vf_zhs", "solids"}, {"m_mno2", "solids"}, {"rho_mno2", "solids"}, {"rho_zmo", "solids"}, {"rho_host", "solids"}, {"m_zhs", "solids"}, {"rho_zhs", "solids"}, {"r_mno2", "solids"}, {"r_zmo", "solids"}, {"r_host", "solids"}, {"r_zhs", "solids"}, {"z_zmo", "solids"}, {"zmin", "solids"}, {"zmax", "solids"}, {"theta0", "solids"}, {"mass_am", "solids"}, {"c_znso4", "electrolyte"}, {"c_mnso4", "electrolyte"}, {"c_h2so4", "electrolyte"}, {"d_zn", "electrolyte"}, {"d_mn", "electrolyte"}, {"d_so4", "electrolyte"}, {"d_h", "electrolyte"}, {"u1", "reactions"}, {"k1", "reactions"}, {"alpha1", "reactions"}, {"u2", "reactions"}, {"k2", "reactions"}, {"alpha2", "reactions"}, {"a_seed_r2", "reactions"}, {"k3", "reactions"}, {"alpha3", "reactions"}, {"v_at_zmin", "reactions"}, {"v_at_zmax", "reactions"}, {"c_ref3", "reactions"}, {"k_an", "reactions"}, {"alpha_an", "reactions"}, {"logk_zhs", "reactions"}, {"k_zhs", "reactions"}, {"a_seed_zhs", "reactions"}, {"ph_mode", "options"}, {"ph_fixed", "options"}, {"species", "options"}, {"transport", "options"}, {"basis", "options"}, {"r1_on", "options"}, {"r2_on", "options"}, {"r3_on", "options"}, {"zhs", "options"}, {"zhs_nucleation", "options"}, {"zno_on", "options"}, {"znoh2_on", "options"}, {"logk_zno", "options"}, {"logk_znoh2", "options"}, {"k_zno", "options"}, {"k_znoh2", "options"}, {"m_zno", "options"}, {"rho_zno", "options"}, {"m_znoh2", "options"}, {"rho_znoh2", "options"}, {"r3_ocp", "options"}, {"r3_end_width", "options"}, {"u3_nernst", "options"}, {"logk_file", "options"}, {"equilibria_db", "options"}, {"d_oh", "options"}, {"d_hso4", "options"}, {"d_complex", "options"}, {"r", "constants"}, {"t", "constants"}, {"f", "constants"}, {"steps", "protocol"}, {"cycles", "protocol"}, {"end_on_cutoff", "protocol"}, {"v_min", "protocol"}, {"v_max", "protocol"}, {"dt", "numerics"}, {"newton_tol", "numerics"}, {"newton_max_iter", "numerics"}, {"dt_mode", "numerics"}, {"rtol", "numerics"}, {"atol", "numerics"}, {"dt_min", "numerics"}, {"dt_max", "numerics"}, {"file", "output"}, {"write_interval", "output"}};
     }
 };
 
@@ -2719,6 +2724,32 @@ struct Driver {
         double t = 0.0, I = 0.0;
         mAhg = 0.0; n_done = 0;
         auto first_current = [&](const Step& st) { return st.kind == "cc" ? st.I * 1.0e-3 * m.mass : 0.0; };
+        // adaptive steps (see driver.py): backward Euler's local error, h/(h + hprev) times the weighted RMS of the new
+        // state less the linear predictor through the two states before it; weights atol*scale + rtol*|x|, the scale 1
+        // for the potentials and theta and otherwise the variable's largest magnitude, at least 1e-3 of the initial
+        // sulfate (Stepper.error_scale)
+        const bool adaptive = p.dt_mode == "adaptive";
+        const double h_max = p.dt_max > 0.0 ? p.dt_max : p.write_interval;
+        auto local_error = [&](const Mat& xn, const Mat& x0, const Mat& xp, double hs, double hprev) {
+            double floor = -std::numeric_limits<double>::max();
+            for (int j = 1; j <= m.nc; ++j) floor = std::max(floor, m.x0_state(SO, j));
+            floor = 1.0e-3 * floor;
+            std::vector<double> sc(N + 1);
+            for (int v = 1; v <= N; ++v) {
+                double mx = -std::numeric_limits<double>::max();
+                for (int j = 1; j <= m.nc; ++j) mx = std::max(mx, std::abs(xn(v, j)));
+                sc[v] = std::max(mx, floor);
+            }
+            sc[P1] = 1.0; sc[P2] = 1.0; sc[TH] = 1.0;
+            double s = 0.0;
+            for (int j = 1; j <= m.nc; ++j)
+                for (int v = 1; v <= N; ++v) {
+                    const double pred = x0(v, j) + (hs / hprev) * (x0(v, j) - xp(v, j));
+                    const double e = (xn(v, j) - pred) / (p.atol * sc[v] + p.rtol * std::abs(xn(v, j)));
+                    s = s + e * e;
+                }
+            return hs / (hs + hprev) * std::sqrt(s / static_cast<double>(N * m.nc));
+        };
         I = first_current(steps[0]);
         m.write_row(t, state, mAhg, I, 1);
         double last_write = t;
@@ -2728,9 +2759,19 @@ struct Driver {
             const Step& st = steps[k - 1];
             double t_step = 0.0;
             if (st.kind != "cv") I = first_current(st);
+            double h_next = p.dt, hprev = 0.0;
+            bool have_prev = false;
+            Mat xprev;
             while (true) {
                 double hh = p.dt;
                 if (st.t >= 0) hh = std::min(p.dt, st.t - t_step);
+                bool clipped = false;
+                const double I_start = I;
+                if (adaptive) {
+                    hh = std::min(std::min(h_next, h_max), last_write + p.write_interval - t);
+                    if (st.t >= 0) hh = std::min(hh, st.t - t_step);
+                    clipped = hh < h_next;
+                }
                 Mat nw;
                 double h_done = 0;
                 bool stopped = false, ok;
@@ -2769,6 +2810,22 @@ struct Driver {
                     last_write = t; reason = why;
                     break;
                 }
+                if (adaptive && !stopped) {
+                    double fac = 2.0;
+                    if (have_prev) {
+                        const double err = local_error(nw, state, xprev, h_done, hprev);
+                        if (err != 0.0) fac = std::min(2.0, std::max(0.2, 0.9 / std::sqrt(err)));
+                        if (err > 1.0 && h_done > p.dt_min) {
+                            h_next = std::max(p.dt_min, h_done * fac);   // redo the step, shorter
+                            I = I_start;
+                            continue;
+                        }
+                    }
+                    xprev = state;
+                    hprev = h_done;
+                    have_prev = true;
+                    if (!(clipped && fac >= 1.0)) h_next = std::max(p.dt_min, h_done * fac);
+                }
                 mAhg = mAhg + 1000.0 * (I / m.mass) * h_done / 3600.0;
                 state = nw; t = t + h_done; t_step = t_step + h_done; ++n_done;
                 for (double v : state.d)
@@ -2780,7 +2837,7 @@ struct Driver {
                     if (stopped && why.compare(0, 6, "cutoff") == 0 && p.end_on_cutoff) return why;
                     break;
                 }
-                if (t - last_write >= p.write_interval) {
+                if (t - last_write >= p.write_interval * (adaptive ? 1.0 - 1.0e-12 : 1.0)) {
                     m.write_row(t, state, mAhg, I, k);
                     last_write = t;
                 }
@@ -2818,6 +2875,7 @@ std::string run_corrected(const Namelist& nl, const std::string& data_dir, std::
     check_choice("basis", m.p.basis, {"free", "totals"});
     check_choice("zhs", m.p.zhs, {"kinetic", "equilibrium", "lumped", "off"});
     check_choice("r3_ocp", m.p.r3_ocp, {"spline_nernst", "spline", "nernst"});
+    check_choice("dt_mode", m.p.dt_mode, {"fixed", "adaptive"});
     m.setup(data_dir);
     Driver drv(m);
     const std::string reason = drv.run(n_done, mAhg);

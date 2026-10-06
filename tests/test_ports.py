@@ -109,6 +109,10 @@ CASES = {
     "cv_sub_steps": dict(steps="cc I=200 Vmin=1.2; cv V=1.9 Imin=5", end_on_cutoff=False, dt=600.0),
     # ends at a full host: the exit row is located at theta = 1 - 1e-3, where the voltage is determined (#14)
     "host_full": dict(R1_on=False, R2_on=False, steps="cc I=400 Vmin=0.2"),
+    # adaptive time steps (#7): the same steps in every implementation
+    "adaptive": dict(dt_mode="adaptive"),
+    "adaptive_cc_cv": dict(steps="cc I=200 Vmin=1.2; cc I=-200 Vmax=1.75; cv V=1.75 Imin=50", end_on_cutoff=False,
+                           dt_mode="adaptive"),
 }
 _PY = {}
 
@@ -258,6 +262,7 @@ BAD = [
     ("&cellz\n  n_sep = 6\n/\n", "unknown namelist group &cellz"),
     ("&cell\n  n_sep = 6\n/\n&cell\n  n_cath = 8\n/\n", "namelist group &cell appears twice"),
     ("&protocol\n  steps = 'cx I=1'\n/\n", "unknown step type 'cx'"),
+    ("&numerics\n  dt_mode = 'variable'\n/\n", "dt_mode must be one of"),
 ]
 
 

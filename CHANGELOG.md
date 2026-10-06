@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Adaptive time stepping** (all three implementations; #7): `dt_mode = 'adaptive'` chooses each time step from backward Euler's local error estimate (linear predictor), against `rtol` and `atol` (scaled by each variable's size), within `dt_min` and `dt_max`; steps land on the output times. Fortran and C++ take the same steps. The default stays `dt_mode = 'fixed'`, so existing inputs give the same output.
+
 ## 0.2.0 (2026-10-05)
 
 - **Driver:** a run that ends at a full (or empty) insertion host writes the state where θ reaches 1 − 10⁻³ (or 10⁻³) instead of the last converged sub-step, whose voltage Newton did not determine (87 mV apart between implementations). Other runs are unchanged (#14).

@@ -43,6 +43,8 @@
 /
 &numerics
   dt = 10.0
+  dt_mode = 'fixed'        ! 'fixed' or 'adaptive' (local error control, docs/protocol.md)
+  rtol = 1.0e-4, atol = 1.0e-4, dt_min = 1.0e-6, dt_max = 0.0   ! adaptive only; dt_max = 0: write_interval
 /
 &output
   file = 'znmno2_out.txt', write_interval = 60.0

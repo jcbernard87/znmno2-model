@@ -9,7 +9,7 @@ from typing import Any
 import numpy as np
 
 from .driver import EVENT_DV, run_protocol
-from .model import CATH, MN, MO, PROBE, SO, TH, ZH, ZM, ZN, Model, sigmoid
+from .model import CATH, MN, MO, P1, P2, PROBE, SO, TH, ZH, ZM, ZN, Model, sigmoid
 from .params import Params
 
 LIMIT = 1.0e-3        # a physical limit is reached within this fraction (see Stepper.limit_reason)
@@ -82,6 +82,15 @@ class Stepper:
         if np.min(m.porosity(x)[c]) < LIMIT:
             return "pores_clogged"
         return None
+
+    def error_scale(self, x):
+        """The scale of each variable for the adaptive driver's absolute tolerance (atol times it): 1 for the
+        potentials [V] and the log-odds of theta; for a concentration or an amount, its largest magnitude on the
+        mesh, at least 1e-3 of the initial sulfate concentration (smaller values are controlled absolutely)."""
+        floor = 1.0e-3 * float(np.max(self.x0[:, SO]))
+        s = np.maximum(np.max(np.abs(x), axis=0), floor)
+        s[[P1, P2, TH]] = 1.0
+        return np.broadcast_to(s, x.shape)
 
     def event_margin(self, x, I):
         """Distance to a full host on discharge (theta = 1 - LIMIT) or an empty one on charge (theta = LIMIT),

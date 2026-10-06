@@ -116,11 +116,17 @@ class Params:
     write_interval: float = 60.0    # [s]
     newton_tol: float = 1.0e-9      # Newton update tolerance (scaled)
     newton_max_iter: int = 30       # Newton iterations per (sub-)step
+    dt_mode: str = "fixed"          # fixed: steps of dt | adaptive: chosen from the local error (docs/protocol.md)
+    rtol: float = 1.0e-4            # adaptive: relative local error tolerance
+    atol: float = 1.0e-4            # adaptive: absolute tolerance, relative to each variable's scale
+    dt_min: float = 1.0e-6          # adaptive: smallest step [s]
+    dt_max: float = 0.0             # adaptive: largest step [s]; 0: write_interval
 
     def __post_init__(self):
         choices = dict(ph_mode=("speciation", "zhs_equilibrium", "fixed", "spline"), species=("with_H", "no_H"),
                        transport=("ions", "quasi"), basis=("free", "totals"),
-                       zhs=("kinetic", "equilibrium", "lumped", "off"), r3_ocp=("spline_nernst", "spline", "nernst"))
+                       zhs=("kinetic", "equilibrium", "lumped", "off"), r3_ocp=("spline_nernst", "spline", "nernst"),
+                       dt_mode=("fixed", "adaptive"))
         for name, allowed in choices.items():
             if getattr(self, name) not in allowed:
                 raise ValueError(f"{name} must be one of {allowed}, got {getattr(self, name)!r}")

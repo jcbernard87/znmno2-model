@@ -1313,6 +1313,30 @@ contains
 
     !> Distance to a full host on discharge (theta = 1 - LIMIT) or an empty one on charge (theta = LIMIT), scaled so
     !> that EVENT_DV is THETA_TOL in theta; negative once crossed, huge if none applies (see Stepper.event_margin).
+    !> Backward Euler's local error estimate (driver.py): hs/(hs + hprev) times the weighted RMS of xn less the
+    !> linear predictor through xp (hprev before x0) and x0; weights atol*scale + rtol*|x|, the scale 1 for the
+    !> potentials and theta and otherwise the variable's largest magnitude, at least 1e-3 of the initial sulfate
+    !> (Stepper.error_scale).
+    real(dp) function local_error(xn, x0, xp, hs, hprev)
+        real(dp), intent(in) :: xn(N,nc), x0(N,nc), xp(N,nc), hs, hprev
+        real(dp) :: sc(N), floor, s, pred, e
+        integer :: j, v
+        floor = 1.0e-3_dp*maxval(x0_state(SO,:))
+        do v = 1, N
+            sc(v) = max(maxval(abs(xn(v,:))), floor)
+        end do
+        sc(P1) = 1.0_dp; sc(P2) = 1.0_dp; sc(TH) = 1.0_dp
+        s = 0.0_dp
+        do j = 1, nc
+            do v = 1, N
+                pred = x0(v,j) + (hs/hprev)*(x0(v,j) - xp(v,j))
+                e = (xn(v,j) - pred)/(p%atol*sc(v) + p%rtol*abs(xn(v,j)))
+                s = s + e*e
+            end do
+        end do
+        local_error = hs/(hs + hprev)*sqrt(s/real(N*nc, dp))
+    end function local_error
+
     real(dp) function event_margin(xn, I)
         real(dp), intent(in) :: xn(N,nc), I
         real(dp) :: thmax, thmin, thj, d
@@ -1530,12 +1554,19 @@ contains
         character(len=32) :: why
         character(len=512) :: file
         real(dp) :: last_write
+        ! adaptive steps (see driver.py): the next step, the step before this one and the state before it
+        logical :: adaptive, have_prev, clipped
+        real(dp) :: h_next, h_max, hprev, I_start, err, fac
+        real(dp), allocatable :: xprev(:,:)
 
         call read_params(nml_unit, p, file)
         out_file = file
         call setup(data_dir)
         call parse_protocol(trim(p%steps), steps, nsteps)
-        allocate(state(N,nc), new(N,nc), prog(N,nc), redo(N,nc))
+        allocate(state(N,nc), new(N,nc), prog(N,nc), redo(N,nc), xprev(N,nc))
+        adaptive = trim(p%dt_mode) == 'adaptive'
+        h_max = p%write_interval
+        if (p%dt_max > 0.0_dp) h_max = p%dt_max
         open(newunit=ou, file=trim(out_file), status='replace', action='write')
         call write_header()
         call initial_state(state, fail)
@@ -1549,9 +1580,19 @@ contains
         do k = 1, nsteps
             t_step = 0.0_dp
             if (steps(k)%kind /= 'cv') I = first_current(steps(k))
+            h_next = p%dt
+            have_prev = .false.
+            hprev = 0.0_dp
             do
-                hh = p%dt
-                if (steps(k)%t >= 0) hh = min(p%dt, steps(k)%t - t_step)
+                if (adaptive) then
+                    hh = min(h_next, h_max, last_write + p%write_interval - t)
+                    if (steps(k)%t >= 0) hh = min(hh, steps(k)%t - t_step)
+                    clipped = hh < h_next
+                    I_start = I
+                else
+                    hh = p%dt
+                    if (steps(k)%t >= 0) hh = min(p%dt, steps(k)%t - t_step)
+                end if
                 if (steps(k)%kind == 'cv') then
                     call cv_advance(state, hh, steps(k)%V, I, new, h_done, fail)
                     stopped = steps(k)%Imin >= 0 .and. abs(I) <= steps(k)%Imin*1.0e-3_dp*mass
@@ -1600,6 +1641,22 @@ contains
                     last_write = t; reason = why
                     exit
                 end if
+                if (adaptive .and. .not. stopped) then
+                    fac = 2.0_dp
+                    if (have_prev) then
+                        err = local_error(new, state, xprev, h_done, hprev)
+                        if (err /= 0.0_dp) fac = min(2.0_dp, max(0.2_dp, 0.9_dp/sqrt(err)))
+                        if (err > 1.0_dp .and. h_done > p%dt_min) then
+                            h_next = max(p%dt_min, h_done*fac)      ! redo the step, shorter
+                            I = I_start
+                            cycle
+                        end if
+                    end if
+                    xprev = state
+                    hprev = h_done
+                    have_prev = .true.
+                    if (.not. (clipped .and. fac >= 1.0_dp)) h_next = max(p%dt_min, h_done*fac)
+                end if
                 mAhg = mAhg + 1000.0_dp*(I/mass)*h_done/3600.0_dp
                 state = new; t = t + h_done; t_step = t_step + h_done; n_done = n_done + 1
                 if (.not. all(ieee_is_finite(state))) then
@@ -1618,7 +1675,8 @@ contains
                     end if
                     exit
                 end if
-                if (t - last_write >= p%write_interval) then
+                if ((.not. adaptive .and. t - last_write >= p%write_interval) .or. &
+                    (adaptive .and. t - last_write >= p%write_interval*(1.0_dp - 1.0e-12_dp))) then
                     call write_row(t, state, mAhg, I, k)
                     last_write = t
                 end if

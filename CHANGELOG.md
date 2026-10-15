@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 (2026-10-14)
 
 - **Host-to-ZMO transfer** (`zmc_transfer`, off by default; all three implementations; #5): the insertion host's Mn is a new unknown (N = 13), so a nearly full host can turn into ZMO at a finite rate, smooth in θ around z = 0.985 z_max (the original programs' transfer, deviation M-9). The transferred Mn takes z_ZMO Zn along; the host keeps the rest; Zn, Mn, S and H stay conserved to round-off. The default output is unchanged.
 - **D_complex:** its comment cited an internal note; it now says the value is assumed, with no cited source yet (#1).

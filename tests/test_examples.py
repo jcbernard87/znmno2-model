@@ -19,7 +19,9 @@ CORRECTED = {
     "cccv": dict(steps="cc I=100 Vmin=1.0; rest t=600; cc I=-100 Vmax=1.8; cv V=1.8 Imin=5", end_on_cutoff=False),
     "acid_probe": dict(c_H2SO4=0.1, L_probe=0.2),
 }
-EXPECT = {"cccv": "exit 'end_of_protocol'", "acid_probe": "exit 'cutoff_low'",
+# the acid discharge ends where the host fills and the voltage collapses in the same step: which of the two is
+# reported depends on round-off (cutoff_low on macOS, insertion_full on Linux, at the same step and capacity)
+EXPECT = {"cccv": "exit 'end_of_protocol'", "acid_probe": ("exit 'cutoff_low'", "exit 'insertion_full'"),
           "faithful_charge": "NaN in cprev", "faithful_phcell": "EXIT BECAUSE LOWER VOLTAGE CUTOFF"}
 
 
@@ -42,4 +44,5 @@ def test_the_fortran_program_runs_the_examples(name, tmp_path):
         text = f"&run data_dir = '{data}' /\n" + text
     (tmp_path / "in.nml").write_text(text)
     r = subprocess.run([str(FORTRAN), str(tmp_path / "in.nml")], capture_output=True, text=True, cwd=tmp_path)
-    assert r.returncode == 0 and EXPECT[name] in r.stdout, r.stdout + r.stderr
+    expect = EXPECT[name] if isinstance(EXPECT[name], tuple) else (EXPECT[name],)
+    assert r.returncode == 0 and any(e in r.stdout for e in expect), r.stdout + r.stderr

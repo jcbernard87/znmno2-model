@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Configurable output** (all three implementations; #15): `columns` chooses the time-series columns; `profile_file` writes the variables of `Model.profiles` (now with `phi1`) against x in one long table, with every `profile_every`-th output row, at `profile_times` and at the end; `profile_vars` chooses the variables. Off by default: the output is unchanged.
 - **Restart files** (all three implementations; #16): `restart_write` writes the final state, the reference state of the limits, time, capacity and current; `restart_read` starts a run from it. A continued run repeats the run it continues exactly; the implementations read each other's files.
 - **Fortran program:** an error reading `&run`, `&output` or `&faithful` exited with status 0 (`stop 'message'`); it now prints `error: ...` and exits with status 1, like the model's other errors.
 - **CI** (#20): every supported Python version (3.9-3.13), coverage in the run summary; the port tests' input builder refuses names it cannot place.

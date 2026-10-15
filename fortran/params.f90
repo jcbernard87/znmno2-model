@@ -112,6 +112,11 @@ module zn_params
         real(dp) :: write_interval = 60.0_dp               ! [s]
         character(len=512) :: restart_read = ''            ! start from this restart file (#16); '' = the initial state
         character(len=512) :: restart_write = ''           ! write the final state to this restart file; '' = none
+        character(len=1024) :: columns = ''                ! time-series columns to write (#15); '' = all
+        character(len=512) :: profile_file = ''            ! write profiles against x to this file; '' = none
+        character(len=1024) :: profile_vars = ''           ! profile variables ('' = all)
+        integer :: profile_every = 0                       ! a profile with every N-th output row (0: none)
+        character(len=1024) :: profile_times = ''          ! [s] a profile at the first row at or after each
         real(dp) :: newton_tol = 1e-09_dp                  ! Newton update tolerance (scaled)
         integer :: newton_max_iter = 30                    ! Newton iterations per (sub-)step
         character(len=512) :: dt_mode = 'fixed'            ! fixed: steps of dt | adaptive: chosen from the local error (docs/protocol.md)
@@ -144,7 +149,9 @@ contains
         real(dp) :: T, F, V_min, V_max, dt, newton_tol, write_interval, rtol, atol, dt_min, dt_max
         integer :: n_probe, n_sep, n_cath, cycles, newton_max_iter
         character(len=512) :: ph_mode, species, transport, basis, zhs, r3_ocp, logk_file, equilibria_db
-        character(len=512) :: steps, dt_mode, restart_read, restart_write
+        character(len=512) :: steps, dt_mode, restart_read, restart_write, profile_file
+        character(len=1024) :: columns, profile_vars, profile_times
+        integer :: profile_every
         logical :: R1_on, R2_on, R3_on, ZnO_on, ZnOH2_on, end_on_cutoff, zmc_transfer
         namelist /cell/ A_cell, L_probe, eps_probe, tau_probe, L_sep, eps_sep, tau_factor_sep, bruggeman_sep, &
             L_cath, eps_cath, tau_factor_cath, bruggeman_cath, n_probe, n_sep, n_cath, sigma
@@ -160,7 +167,8 @@ contains
         namelist /constants/ R, T, F
         namelist /protocol/ steps, cycles, end_on_cutoff, V_min, V_max
         namelist /numerics/ dt, newton_tol, newton_max_iter, dt_mode, rtol, atol, dt_min, dt_max
-        namelist /output/ file, write_interval, restart_read, restart_write
+        namelist /output/ file, write_interval, restart_read, restart_write, columns, profile_file, profile_vars, &
+            profile_every, profile_times
 
         A_cell = p%A_cell; L_probe = p%L_probe; eps_probe = p%eps_probe; tau_probe = p%tau_probe
         L_sep = p%L_sep; eps_sep = p%eps_sep; tau_factor_sep = p%tau_factor_sep; bruggeman_sep = p%bruggeman_sep
@@ -189,6 +197,8 @@ contains
         end_on_cutoff = p%end_on_cutoff; V_min = p%V_min; V_max = p%V_max; dt = p%dt
         newton_tol = p%newton_tol; newton_max_iter = p%newton_max_iter; write_interval = p%write_interval
         restart_read = p%restart_read; restart_write = p%restart_write
+        columns = p%columns; profile_file = p%profile_file; profile_vars = p%profile_vars
+        profile_every = p%profile_every; profile_times = p%profile_times
         dt_mode = p%dt_mode; rtol = p%rtol; atol = p%atol; dt_min = p%dt_min; dt_max = p%dt_max
         file = 'znmno2_out.txt'
         do g = 1, size(groups)
@@ -236,7 +246,13 @@ contains
         p%end_on_cutoff = end_on_cutoff; p%V_min = V_min; p%V_max = V_max; p%dt = dt
         p%newton_tol = newton_tol; p%newton_max_iter = newton_max_iter; p%write_interval = write_interval
         p%restart_read = restart_read; p%restart_write = restart_write
+        p%columns = columns; p%profile_file = profile_file; p%profile_vars = profile_vars
+        p%profile_every = profile_every; p%profile_times = profile_times
         p%dt_mode = dt_mode; p%rtol = rtol; p%atol = atol; p%dt_min = dt_min; p%dt_max = dt_max
+        if (p%profile_every < 0) then
+            write(*, '(A,I0)') 'error: profile_every must be at least 0, got ', p%profile_every
+            stop 1
+        end if
         call check(p%ph_mode, [character(len=16) :: 'speciation', 'zhs_equilibrium', 'fixed', 'spline'], 'ph_mode')
         call check(p%species, [character(len=16) :: 'with_H', 'no_H'], 'species')
         call check(p%transport, [character(len=16) :: 'ions', 'quasi'], 'transport')

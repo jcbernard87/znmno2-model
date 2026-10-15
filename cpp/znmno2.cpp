@@ -1228,6 +1228,11 @@ struct Params {
     double write_interval = 60.0;             // [s]
     std::string restart_read = "";            // start from this restart file (#16); '' = the initial state
     std::string restart_write = "";           // write the final state to this restart file; '' = none
+    std::string columns = "";                 // time-series columns to write (#15); '' = all
+    std::string profile_file = "";            // write profiles against x to this file; '' = none
+    std::string profile_vars = "";            // profile variables ('' = all)
+    int profile_every = 0;                    // a profile with every N-th output row (0: none)
+    std::string profile_times = "";           // [s] a profile at the first row at or after each of these times
     double newton_tol = 1e-09;                // Newton update tolerance (scaled)
     int newton_max_iter = 30;                 // Newton iterations per (sub-)step
     std::string dt_mode = "fixed";            // fixed: steps of dt | adaptive: chosen from the local error (docs/protocol.md)
@@ -1246,10 +1251,10 @@ struct Fields {
     std::map<std::string, std::string> group;
     explicit Fields(Params& p) {
         reals = {{"a_cell", &p.A_cell}, {"l_probe", &p.L_probe}, {"eps_probe", &p.eps_probe}, {"tau_probe", &p.tau_probe}, {"l_sep", &p.L_sep}, {"eps_sep", &p.eps_sep}, {"tau_factor_sep", &p.tau_factor_sep}, {"bruggeman_sep", &p.bruggeman_sep}, {"l_cath", &p.L_cath}, {"eps_cath", &p.eps_cath}, {"tau_factor_cath", &p.tau_factor_cath}, {"bruggeman_cath", &p.bruggeman_cath}, {"sigma", &p.sigma}, {"vf_mno2", &p.vf_MnO2}, {"vf_zmo", &p.vf_ZMO}, {"vf_host", &p.vf_host}, {"vf_zhs", &p.vf_ZHS}, {"m_mno2", &p.M_MnO2}, {"rho_mno2", &p.rho_MnO2}, {"rho_zmo", &p.rho_ZMO}, {"rho_host", &p.rho_host}, {"m_zhs", &p.M_ZHS}, {"rho_zhs", &p.rho_ZHS}, {"r_mno2", &p.r_MnO2}, {"r_zmo", &p.r_ZMO}, {"r_host", &p.r_host}, {"r_zhs", &p.r_ZHS}, {"z_zmo", &p.z_ZMO}, {"zmin", &p.zmin}, {"zmax", &p.zmax}, {"theta0", &p.theta0}, {"mass_am", &p.mass_AM}, {"c_znso4", &p.c_ZnSO4}, {"c_mnso4", &p.c_MnSO4}, {"c_h2so4", &p.c_H2SO4}, {"d_zn", &p.D_Zn}, {"d_mn", &p.D_Mn}, {"d_so4", &p.D_SO4}, {"d_h", &p.D_H}, {"u1", &p.U1}, {"k1", &p.k1}, {"alpha1", &p.alpha1}, {"u2", &p.U2}, {"k2", &p.k2}, {"alpha2", &p.alpha2}, {"a_seed_r2", &p.a_seed_R2}, {"k3", &p.k3}, {"alpha3", &p.alpha3}, {"v_at_zmin", &p.V_at_zmin}, {"v_at_zmax", &p.V_at_zmax}, {"c_ref3", &p.c_ref3}, {"k_an", &p.k_an}, {"alpha_an", &p.alpha_an}, {"logk_zhs", &p.logK_ZHS}, {"k_zhs", &p.k_ZHS}, {"a_seed_zhs", &p.a_seed_ZHS}, {"ph_fixed", &p.pH_fixed}, {"zhs_nucleation", &p.zhs_nucleation}, {"logk_zno", &p.logK_ZnO}, {"logk_znoh2", &p.logK_ZnOH2}, {"k_zno", &p.k_ZnO}, {"k_znoh2", &p.k_ZnOH2}, {"m_zno", &p.M_ZnO}, {"rho_zno", &p.rho_ZnO}, {"m_znoh2", &p.M_ZnOH2}, {"rho_znoh2", &p.rho_ZnOH2}, {"r3_end_width", &p.r3_end_width}, {"u3_nernst", &p.U3_nernst}, {"d_oh", &p.D_OH}, {"d_hso4", &p.D_HSO4}, {"d_complex", &p.D_complex}, {"k_transfer", &p.k_transfer}, {"z_transfer", &p.z_transfer}, {"r", &p.R}, {"t", &p.T}, {"f", &p.F}, {"v_min", &p.V_min}, {"v_max", &p.V_max}, {"dt", &p.dt}, {"write_interval", &p.write_interval}, {"newton_tol", &p.newton_tol}, {"rtol", &p.rtol}, {"atol", &p.atol}, {"dt_min", &p.dt_min}, {"dt_max", &p.dt_max}};
-        ints = {{"n_probe", &p.n_probe}, {"n_sep", &p.n_sep}, {"n_cath", &p.n_cath}, {"cycles", &p.cycles}, {"newton_max_iter", &p.newton_max_iter}};
+        ints = {{"n_probe", &p.n_probe}, {"n_sep", &p.n_sep}, {"n_cath", &p.n_cath}, {"cycles", &p.cycles}, {"newton_max_iter", &p.newton_max_iter}, {"profile_every", &p.profile_every}};
         bools = {{"r1_on", &p.R1_on}, {"r2_on", &p.R2_on}, {"r3_on", &p.R3_on}, {"zno_on", &p.ZnO_on}, {"znoh2_on", &p.ZnOH2_on}, {"end_on_cutoff", &p.end_on_cutoff}, {"zmc_transfer", &p.zmc_transfer}};
-        strs = {{"ph_mode", &p.ph_mode}, {"species", &p.species}, {"transport", &p.transport}, {"basis", &p.basis}, {"zhs", &p.zhs}, {"r3_ocp", &p.r3_ocp}, {"logk_file", &p.logk_file}, {"equilibria_db", &p.equilibria_db}, {"steps", &p.steps}, {"dt_mode", &p.dt_mode}, {"restart_read", &p.restart_read}, {"restart_write", &p.restart_write}};
-        group = {{"mode", "run"}, {"data_dir", "run"}, {"a_cell", "cell"}, {"l_probe", "cell"}, {"eps_probe", "cell"}, {"tau_probe", "cell"}, {"l_sep", "cell"}, {"eps_sep", "cell"}, {"tau_factor_sep", "cell"}, {"bruggeman_sep", "cell"}, {"l_cath", "cell"}, {"eps_cath", "cell"}, {"tau_factor_cath", "cell"}, {"bruggeman_cath", "cell"}, {"n_probe", "cell"}, {"n_sep", "cell"}, {"n_cath", "cell"}, {"sigma", "cell"}, {"vf_mno2", "solids"}, {"vf_zmo", "solids"}, {"vf_host", "solids"}, {"vf_zhs", "solids"}, {"m_mno2", "solids"}, {"rho_mno2", "solids"}, {"rho_zmo", "solids"}, {"rho_host", "solids"}, {"m_zhs", "solids"}, {"rho_zhs", "solids"}, {"r_mno2", "solids"}, {"r_zmo", "solids"}, {"r_host", "solids"}, {"r_zhs", "solids"}, {"z_zmo", "solids"}, {"zmin", "solids"}, {"zmax", "solids"}, {"theta0", "solids"}, {"mass_am", "solids"}, {"c_znso4", "electrolyte"}, {"c_mnso4", "electrolyte"}, {"c_h2so4", "electrolyte"}, {"d_zn", "electrolyte"}, {"d_mn", "electrolyte"}, {"d_so4", "electrolyte"}, {"d_h", "electrolyte"}, {"u1", "reactions"}, {"k1", "reactions"}, {"alpha1", "reactions"}, {"u2", "reactions"}, {"k2", "reactions"}, {"alpha2", "reactions"}, {"a_seed_r2", "reactions"}, {"k3", "reactions"}, {"alpha3", "reactions"}, {"v_at_zmin", "reactions"}, {"v_at_zmax", "reactions"}, {"c_ref3", "reactions"}, {"k_an", "reactions"}, {"alpha_an", "reactions"}, {"logk_zhs", "reactions"}, {"k_zhs", "reactions"}, {"a_seed_zhs", "reactions"}, {"ph_mode", "options"}, {"ph_fixed", "options"}, {"species", "options"}, {"transport", "options"}, {"basis", "options"}, {"r1_on", "options"}, {"r2_on", "options"}, {"r3_on", "options"}, {"zhs", "options"}, {"zhs_nucleation", "options"}, {"zno_on", "options"}, {"znoh2_on", "options"}, {"logk_zno", "options"}, {"logk_znoh2", "options"}, {"k_zno", "options"}, {"k_znoh2", "options"}, {"m_zno", "options"}, {"rho_zno", "options"}, {"m_znoh2", "options"}, {"rho_znoh2", "options"}, {"r3_ocp", "options"}, {"r3_end_width", "options"}, {"u3_nernst", "options"}, {"logk_file", "options"}, {"equilibria_db", "options"}, {"d_oh", "options"}, {"d_hso4", "options"}, {"d_complex", "options"}, {"zmc_transfer", "options"}, {"k_transfer", "options"}, {"z_transfer", "options"}, {"r", "constants"}, {"t", "constants"}, {"f", "constants"}, {"steps", "protocol"}, {"cycles", "protocol"}, {"end_on_cutoff", "protocol"}, {"v_min", "protocol"}, {"v_max", "protocol"}, {"dt", "numerics"}, {"newton_tol", "numerics"}, {"newton_max_iter", "numerics"}, {"dt_mode", "numerics"}, {"rtol", "numerics"}, {"atol", "numerics"}, {"dt_min", "numerics"}, {"dt_max", "numerics"}, {"file", "output"}, {"write_interval", "output"}, {"restart_read", "output"}, {"restart_write", "output"}};
+        strs = {{"ph_mode", &p.ph_mode}, {"species", &p.species}, {"transport", &p.transport}, {"basis", &p.basis}, {"zhs", &p.zhs}, {"r3_ocp", &p.r3_ocp}, {"logk_file", &p.logk_file}, {"equilibria_db", &p.equilibria_db}, {"steps", &p.steps}, {"dt_mode", &p.dt_mode}, {"restart_read", &p.restart_read}, {"restart_write", &p.restart_write}, {"columns", &p.columns}, {"profile_file", &p.profile_file}, {"profile_vars", &p.profile_vars}, {"profile_times", &p.profile_times}};
+        group = {{"mode", "run"}, {"data_dir", "run"}, {"a_cell", "cell"}, {"l_probe", "cell"}, {"eps_probe", "cell"}, {"tau_probe", "cell"}, {"l_sep", "cell"}, {"eps_sep", "cell"}, {"tau_factor_sep", "cell"}, {"bruggeman_sep", "cell"}, {"l_cath", "cell"}, {"eps_cath", "cell"}, {"tau_factor_cath", "cell"}, {"bruggeman_cath", "cell"}, {"n_probe", "cell"}, {"n_sep", "cell"}, {"n_cath", "cell"}, {"sigma", "cell"}, {"vf_mno2", "solids"}, {"vf_zmo", "solids"}, {"vf_host", "solids"}, {"vf_zhs", "solids"}, {"m_mno2", "solids"}, {"rho_mno2", "solids"}, {"rho_zmo", "solids"}, {"rho_host", "solids"}, {"m_zhs", "solids"}, {"rho_zhs", "solids"}, {"r_mno2", "solids"}, {"r_zmo", "solids"}, {"r_host", "solids"}, {"r_zhs", "solids"}, {"z_zmo", "solids"}, {"zmin", "solids"}, {"zmax", "solids"}, {"theta0", "solids"}, {"mass_am", "solids"}, {"c_znso4", "electrolyte"}, {"c_mnso4", "electrolyte"}, {"c_h2so4", "electrolyte"}, {"d_zn", "electrolyte"}, {"d_mn", "electrolyte"}, {"d_so4", "electrolyte"}, {"d_h", "electrolyte"}, {"u1", "reactions"}, {"k1", "reactions"}, {"alpha1", "reactions"}, {"u2", "reactions"}, {"k2", "reactions"}, {"alpha2", "reactions"}, {"a_seed_r2", "reactions"}, {"k3", "reactions"}, {"alpha3", "reactions"}, {"v_at_zmin", "reactions"}, {"v_at_zmax", "reactions"}, {"c_ref3", "reactions"}, {"k_an", "reactions"}, {"alpha_an", "reactions"}, {"logk_zhs", "reactions"}, {"k_zhs", "reactions"}, {"a_seed_zhs", "reactions"}, {"ph_mode", "options"}, {"ph_fixed", "options"}, {"species", "options"}, {"transport", "options"}, {"basis", "options"}, {"r1_on", "options"}, {"r2_on", "options"}, {"r3_on", "options"}, {"zhs", "options"}, {"zhs_nucleation", "options"}, {"zno_on", "options"}, {"znoh2_on", "options"}, {"logk_zno", "options"}, {"logk_znoh2", "options"}, {"k_zno", "options"}, {"k_znoh2", "options"}, {"m_zno", "options"}, {"rho_zno", "options"}, {"m_znoh2", "options"}, {"rho_znoh2", "options"}, {"r3_ocp", "options"}, {"r3_end_width", "options"}, {"u3_nernst", "options"}, {"logk_file", "options"}, {"equilibria_db", "options"}, {"d_oh", "options"}, {"d_hso4", "options"}, {"d_complex", "options"}, {"zmc_transfer", "options"}, {"k_transfer", "options"}, {"z_transfer", "options"}, {"r", "constants"}, {"t", "constants"}, {"f", "constants"}, {"steps", "protocol"}, {"cycles", "protocol"}, {"end_on_cutoff", "protocol"}, {"v_min", "protocol"}, {"v_max", "protocol"}, {"dt", "numerics"}, {"newton_tol", "numerics"}, {"newton_max_iter", "numerics"}, {"dt_mode", "numerics"}, {"rtol", "numerics"}, {"atol", "numerics"}, {"dt_min", "numerics"}, {"dt_max", "numerics"}, {"file", "output"}, {"write_interval", "output"}, {"restart_read", "output"}, {"restart_write", "output"}, {"columns", "output"}, {"profile_file", "output"}, {"profile_vars", "output"}, {"profile_every", "output"}, {"profile_times", "output"}};
     }
 };
 
@@ -1824,6 +1829,14 @@ struct Model {
     double res_scale[N + 1] = {};
     int i_probe = 1;
     std::vector<std::string> out_rows;
+    // configurable output (#15; see output.py): the chosen columns, the profile variables (Model.profiles) and
+    // schedule; the profile rows
+    static constexpr int NPV = 13;
+    bool col_keep[20] = {}, pv_on[NPV] = {}, prof_on = false;
+    int prof_rows = 0, last_prof = -1;
+    std::vector<double> ptimes;
+    std::size_t ipt = 0;
+    std::vector<std::string> prof_out;
 
     double M_ZMO() const { return 65.38 * p.z_ZMO + 54.938 + 2 * 15.999; }
     double M_host() const { return 65.38 * p.zmin + 54.938 + 2 * 15.999; }
@@ -2576,15 +2589,92 @@ struct Model {
         return b;
     }
 
+    static constexpr const char* COL_NAMES[19] = {"t_h", "V", "I_mAg", "mAhg", "step", "pH_cath", "pH_probe", "pH_anode",
+                                                  "Zn_cath_M", "Mn_cath_M", "S_cath_M", "vf_MnO2", "vf_ZMO", "vf_ZHS",
+                                                  "theta", "i_R1_mAg", "i_R2_mAg", "i_R3_mAg", "eps_cath"};
+    static constexpr const char* PV_NAMES[NPV] = {"pH", "Zn_M", "Mn_M", "S_M", "H_M", "Zn_free_M", "phi1", "phi2",
+                                                  "vf_ZHS", "vf_ZMO", "vf_MnO2", "theta", "eps"};
+
+    static std::vector<std::string> words_of(std::string text) {  // the comma- or blank-separated words
+        for (char& ch : text) if (ch == ',') ch = ' ';
+        std::istringstream in(text);
+        std::vector<std::string> out;
+        for (std::string w; in >> w;) out.push_back(w);
+        return out;
+    }
+
+    // parse columns, profile_vars and profile_times
+    void output_setup() {
+        col_keep[1] = true;                        // the time always
+        if (p.columns.empty()) for (int q = 1; q <= 19; ++q) col_keep[q] = true;
+        for (const auto& w : words_of(p.columns)) {
+            bool found = false;
+            for (int q = 2; q <= 19; ++q)
+                if (lower(w) == lower(COL_NAMES[q - 1])) { col_keep[q] = true; found = true; }
+            if (!found) die("unknown output column '" + w + "'");
+        }
+        prof_on = !p.profile_file.empty();
+        if (!prof_on) return;
+        if (p.profile_vars.empty()) for (int k = 0; k < NPV; ++k) pv_on[k] = true;
+        for (const auto& w : words_of(p.profile_vars)) {
+            bool found = false;
+            for (int k = 0; k < NPV; ++k)
+                if (lower(w) == lower(PV_NAMES[k])) { pv_on[k] = true; found = true; }
+            if (!found) die("unknown profile variable '" + w + "'");
+        }
+        for (const auto& w : words_of(p.profile_times)) ptimes.push_back(std::strtod(w.c_str(), nullptr));
+        std::sort(ptimes.begin(), ptimes.end());
+        char b[32];
+        std::string line;
+        for (const char* h : {"t_h", "x_um"}) { std::snprintf(b, sizeof b, "%15s", h); line += (line.empty() ? "" : " ") + std::string(b); }
+        for (int k = 0; k < NPV; ++k)
+            if (pv_on[k]) { std::snprintf(b, sizeof b, " %15s", PV_NAMES[k]); line += b; }
+        prof_out.push_back(line);
+    }
+
+    // one profile: a row per cell with t [h], x [um] and the chosen variables of Model.profiles (NaN where absent)
+    void write_profile(double t, const Mat& x, const Mat& fr, const std::vector<double>& eps) {
+        const double nan = std::numeric_limits<double>::quiet_NaN();
+        for (int j = 1; j <= nc; ++j) {
+            double v[NPV];
+            for (double& e : v) e = nan;
+            double thv, omv;
+            theta_pair(x(TH, j), thv, omv);
+            v[0] = -std::log10(fr(1, j)); v[1] = x(ZN, j) * 1e3; v[2] = x(MN, j) * 1e3; v[3] = x(SO, j) * 1e3;
+            v[4] = x(H, j) * 1e3; v[5] = fr(2, j); v[7] = x(P2, j); v[12] = eps[j];
+            if (incath[j]) {
+                v[6] = x(P1, j);
+                v[8] = x(ZH, j) * Vm[ZH]; v[9] = x(ZM, j) * Vm[ZM]; v[10] = x(MO, j) * Vm[MO]; v[11] = thv;
+            }
+            std::string line = fmt_e(t / 3600.0) + " " + fmt_e(xc[j] * 1e4);
+            for (int k = 0; k < NPV; ++k) if (pv_on[k]) line += " " + fmt_e(v[k]);
+            prof_out.push_back(line);
+        }
+    }
+
+    // after an output row: a profile with every profile_every-th row and at the first row at or after each of
+    // profile_times (the last row's is written after the run, if not already)
+    void profile_hook(double t, const Mat& x, const Mat& fr, const std::vector<double>& eps) {
+        if (!prof_on) return;
+        const int i = prof_rows++;
+        bool due = p.profile_every > 0 && i % p.profile_every == 0;
+        while (ipt < ptimes.size() && t >= ptimes[ipt] * (1.0 - 1.0e-12)) { ++ipt; due = true; }
+        if (due) { write_profile(t, x, fr, eps); last_prof = i; }
+    }
+
+    // the last row's profile, if not already written
+    void output_finish(double t, const Mat& x) {
+        if (!prof_on || last_prof == prof_rows - 1) return;
+        write_profile(t, x, free_of(x, true), porosity(x));
+    }
+
     void write_header() {
-        static const char* cols[19] = {"t_h", "V", "I_mAg", "mAhg", "step", "pH_cath", "pH_probe", "pH_anode", "Zn_cath_M",
-                                       "Mn_cath_M", "S_cath_M", "vf_MnO2", "vf_ZMO", "vf_ZHS", "theta", "i_R1_mAg",
-                                       "i_R2_mAg", "i_R3_mAg", "eps_cath"};
         std::string line;
         char b[32];
         for (int i = 0; i < 19; ++i) {
-            std::snprintf(b, sizeof b, "%15s", cols[i]);
-            line += (i ? " " : "") + std::string(b);
+            if (!col_keep[i + 1]) continue;
+            std::snprintf(b, sizeof b, "%15s", COL_NAMES[i]);
+            line += (line.empty() ? "" : " ") + std::string(b);
         }
         out_rows.push_back(line);
     }
@@ -2628,11 +2718,13 @@ struct Model {
         std::string line;
         char b[32];
         for (int q = 1; q <= 19; ++q) {
-            if (q > 1) line += " ";
+            if (!col_keep[q]) continue;
+            if (!line.empty()) line += " ";
             if (q == 5) { std::snprintf(b, sizeof b, "%15d", k); line += b; }
             else line += fmt_e(row[q]);
         }
         out_rows.push_back(line);
+        profile_hook(t, x, fr, eps);
     }
 };
 
@@ -2818,6 +2910,7 @@ struct Driver {
     std::string run(int& n_done, double& mAhg) {
         const Params& p = m.p;
         const auto steps = parse_protocol(p.steps, p);
+        m.output_setup();
         m.write_header();
         Mat state;
         try {
@@ -2833,7 +2926,10 @@ struct Driver {
         struct RestartOnExit {
             std::function<void()> f;
             ~RestartOnExit() { if (std::uncaught_exceptions() == 0) f(); }
-        } restart_on_exit{[&]() { if (!p.restart_write.empty()) write_restart(p.restart_write, t, mAhg, I, state, m.x0_state); }};
+        } restart_on_exit{[&]() {
+            m.output_finish(t, state);
+            if (!p.restart_write.empty()) write_restart(p.restart_write, t, mAhg, I, state, m.x0_state);
+        }};
         auto first_current = [&](const Step& st) { return st.kind == "cc" ? st.I * 1.0e-3 * m.mass : 0.0; };
         // adaptive steps (see driver.py): backward Euler's local error, h/(h + hprev) times the weighted RMS of the new
         // state less the linear predictor through the two states before it; weights atol*scale + rtol*|x|, the scale 1
@@ -2988,11 +3084,16 @@ std::string run_corrected(const Namelist& nl, const std::string& data_dir, std::
     check_choice("zhs", m.p.zhs, {"kinetic", "equilibrium", "lumped", "off"});
     check_choice("r3_ocp", m.p.r3_ocp, {"spline_nernst", "spline", "nernst"});
     check_choice("dt_mode", m.p.dt_mode, {"fixed", "adaptive"});
+    if (m.p.profile_every < 0) die("profile_every must be at least 0, got " + std::to_string(m.p.profile_every));
     m.setup(data_dir);
     Driver drv(m);
     const std::string reason = drv.run(n_done, mAhg);
     std::ofstream out(out_file);
     for (const auto& r : m.out_rows) out << r << "\n";
+    if (m.prof_on) {
+        std::ofstream pf(m.p.profile_file);
+        for (const auto& r : m.prof_out) pf << r << "\n";
+    }
     return reason;
 }
 
@@ -3056,6 +3157,8 @@ int main(int argc, char** argv) {
         }
         if (!get("output", "restart_read", "").empty() || !get("output", "restart_write", "").empty())
             throw std::runtime_error("restart files need mode='corrected'");
+        if (!get("output", "columns", "").empty() || !get("output", "profile_file", "").empty())
+            throw std::runtime_error("columns and profiles need mode='corrected'");
         if (mode == "faithful_charge") reason = run_faithful(false, nl, data_dir, file);
         else if (mode == "faithful_phcell") reason = run_faithful(true, nl, data_dir, file);
         else throw std::runtime_error("mode must be corrected, faithful_charge or faithful_phcell");

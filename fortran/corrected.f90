@@ -8,7 +8,8 @@
 !>
 !> SPDX-License-Identifier: BSD-3-Clause
 module zn_corrected
-    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_value, ieee_positive_inf, ieee_negative_inf
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_value, ieee_positive_inf, ieee_negative_inf, &
+        ieee_quiet_nan
     use, intrinsic :: iso_c_binding, only: c_double
     use zn_params, only: dp, params_t, read_params, M_ZMO, M_host, active_mass
     use zn_equilibria, only: eq_t, eq_init, eq_solve, eq_species, eq_sensitivity, LN10
@@ -80,6 +81,16 @@ module zn_corrected
     ! ------------------------------------------------------------------ output
     integer :: ou
     integer :: n_rows = 0
+    ! configurable output (#15): the chosen columns, the profile variables (Model.profiles) and schedule
+    character(len=15), parameter :: COL_NAMES(19) = [character(len=15) :: 't_h', 'V', 'I_mAg', 'mAhg', 'step', &
+        'pH_cath', 'pH_probe', 'pH_anode', 'Zn_cath_M', 'Mn_cath_M', 'S_cath_M', 'vf_MnO2', 'vf_ZMO', &
+        'vf_ZHS', 'theta', 'i_R1_mAg', 'i_R2_mAg', 'i_R3_mAg', 'eps_cath']
+    integer, parameter :: NPV = 13
+    character(len=15), parameter :: PV_NAMES(NPV) = [character(len=15) :: 'pH', 'Zn_M', 'Mn_M', 'S_M', 'H_M', &
+        'Zn_free_M', 'phi1', 'phi2', 'vf_ZHS', 'vf_ZMO', 'vf_MnO2', 'theta', 'eps']
+    logical :: col_keep(19) = .true., pv_on(NPV) = .false., prof_on = .false.
+    integer :: pfu = 0, prof_rows = 0, last_prof = -1, npt = 0, ipt = 1
+    real(dp), allocatable :: ptimes(:)
 
 contains
 
@@ -1200,16 +1211,16 @@ contains
     end function fmt_e
 
     subroutine write_header()
-        character(len=15), parameter :: cols(19) = [character(len=15) :: 't_h', 'V', 'I_mAg', 'mAhg', 'step', &
-            'pH_cath', 'pH_probe', 'pH_anode', 'Zn_cath_M', 'Mn_cath_M', 'S_cath_M', 'vf_MnO2', 'vf_ZMO', &
-            'vf_ZHS', 'theta', 'i_R1_mAg', 'i_R2_mAg', 'i_R3_mAg', 'eps_cath']
         character(len=16*19) :: line
-        integer :: i
+        integer :: i, m
         line = ''
+        m = 0
         do i = 1, 19
-            line(16*(i-1)+1:16*i-1) = adjustr(cols(i))
+            if (.not. col_keep(i)) cycle
+            m = m + 1
+            line(16*(m-1)+1:16*m-1) = adjustr(COL_NAMES(i))
         end do
-        write(ou, '(A)') line(1:16*19-1)
+        write(ou, '(A)') line(1:16*m-1)
     end subroutine write_header
 
     subroutine write_row(t, x, mAhg, I, k)
@@ -1217,7 +1228,7 @@ contains
         integer, intent(in) :: k
         real(dp) :: fr(4,nc), cb(4,nc), eps(nc), i1, i2, i3, rz, s1, s2, s3, vsum, row(19)
         character(len=16*19) :: line
-        integer :: j, q
+        integer :: j, q, m
         logical :: fail
         call free_of(x, .true., fr, fail)
         call basis_of(x, fr, cb)
@@ -1248,15 +1259,19 @@ contains
         row(18) = s3*(1.0e3_dp/mass)
         row(19) = cmean(eps)
         line = ''
+        m = 0
         do q = 1, 19
+            if (.not. col_keep(q)) cycle
+            m = m + 1
             if (q == 5) then
-                write(line(16*(q-1)+1:16*q-1), '(I15)') k
+                write(line(16*(m-1)+1:16*m-1), '(I15)') k
             else
-                line(16*(q-1)+1:16*q-1) = fmt_e(row(q))
+                line(16*(m-1)+1:16*m-1) = fmt_e(row(q))
             end if
         end do
-        write(ou, '(A)') line(1:16*19-1)
+        write(ou, '(A)') line(1:16*m-1)
         n_rows = n_rows + 1
+        call profile_hook(t, x, fr, eps)
     contains
         real(dp) function cmean(v)                   ! volume average over the cathode
             real(dp), intent(in) :: v(nc)
@@ -1268,6 +1283,166 @@ contains
             cmean = cmean/vsum
         end function cmean
     end subroutine write_row
+
+    ! ================================================================== configurable output (#15; see output.py)
+    subroutine split_words(text, words, n)
+        !! The comma- or blank-separated words of text.
+        character(len=*), intent(in) :: text
+        character(len=64), intent(out) :: words(:)
+        integer, intent(out) :: n
+        character(len=len(text)) :: t
+        integer :: i, j
+        t = text
+        do i = 1, len(t)
+            if (t(i:i) == ',') t(i:i) = ' '
+        end do
+        n = 0
+        i = 1
+        do while (i <= len_trim(t))
+            if (t(i:i) == ' ') then
+                i = i + 1
+                cycle
+            end if
+            j = i
+            do while (j <= len_trim(t))
+                if (t(j:j) == ' ') exit
+                j = j + 1
+            end do
+            n = n + 1
+            if (n > size(words)) call die('too many names in a list: '//trim(text))
+            words(n) = t(i:j-1)
+            i = j
+        end do
+    end subroutine split_words
+
+    logical function same_name(a, b)
+        character(len=*), intent(in) :: a, b
+        character(len=64) :: la, lb
+        la = a; lb = b
+        call lower(la); call lower(lb)
+        same_name = la == lb
+    end function same_name
+
+    subroutine output_setup()
+        !! Parse columns, profile_vars and profile_times; open the profile file.
+        character(len=64) :: words(64)
+        integer :: n, i, k
+        real(dp) :: ts
+        logical :: found
+        col_keep = .false.
+        col_keep(1) = .true.                             ! the time always
+        if (len_trim(p%columns) == 0) then
+            col_keep = .true.
+        else
+            call split_words(p%columns, words, n)
+            do i = 1, n
+                found = .false.
+                do k = 2, 19
+                    if (same_name(words(i), COL_NAMES(k))) then
+                        col_keep(k) = .true.; found = .true.
+                    end if
+                end do
+                if (.not. found) call die('unknown output column '''//trim(words(i))//'''')
+            end do
+        end if
+        prof_on = len_trim(p%profile_file) > 0
+        if (.not. prof_on) return
+        pv_on = .false.
+        if (len_trim(p%profile_vars) == 0) then
+            pv_on = .true.
+        else
+            call split_words(p%profile_vars, words, n)
+            do i = 1, n
+                found = .false.
+                do k = 1, NPV
+                    if (same_name(words(i), PV_NAMES(k))) then
+                        pv_on(k) = .true.; found = .true.
+                    end if
+                end do
+                if (.not. found) call die('unknown profile variable '''//trim(words(i))//'''')
+            end do
+        end if
+        call split_words(p%profile_times, words, n)
+        allocate(ptimes(max(n, 1)))
+        do i = 1, n
+            read(words(i), *) ptimes(i)
+        end do
+        npt = n
+        do i = 2, npt                                    ! sorted
+            ts = ptimes(i); k = i - 1
+            do while (k >= 1)
+                if (ptimes(k) <= ts) exit
+                ptimes(k+1) = ptimes(k); k = k - 1
+            end do
+            ptimes(k+1) = ts
+        end do
+        open(newunit=pfu, file=trim(p%profile_file), status='replace', action='write')
+        write(pfu, '(A15,1X,A15)', advance='no') 't_h', 'x_um'
+        do k = 1, NPV
+            if (pv_on(k)) write(pfu, '(1X,A15)', advance='no') adjustr(PV_NAMES(k))
+        end do
+        write(pfu, '(A)') ''
+    end subroutine output_setup
+
+    subroutine profile_hook(t, x, fr, eps)
+        !! After an output row: a profile with every profile_every-th row and at the first row at or after each of
+        !! profile_times (the last row's is written after the run, if not already).
+        real(dp), intent(in) :: t, x(N,nc), fr(4,nc), eps(nc)
+        logical :: due
+        integer :: i
+        if (.not. prof_on) return
+        i = prof_rows
+        prof_rows = prof_rows + 1
+        due = p%profile_every > 0
+        if (due) due = mod(i, p%profile_every) == 0
+        do while (ipt <= npt)
+            if (t < ptimes(ipt)*(1.0_dp - 1.0e-12_dp)) exit
+            ipt = ipt + 1
+            due = .true.
+        end do
+        if (due) then
+            call write_profile(t, x, fr, eps)
+            last_prof = i
+        end if
+    end subroutine profile_hook
+
+    subroutine write_profile(t, x, fr, eps)
+        !! One profile: a row per cell with t [h], x [um] and the chosen variables of Model.profiles (NaN where absent).
+        real(dp), intent(in) :: t, x(N,nc), fr(4,nc), eps(nc)
+        real(dp) :: v(NPV), nan, thv, omv
+        integer :: j, k
+        nan = ieee_value(1.0_dp, ieee_quiet_nan)
+        do j = 1, nc
+            v = nan
+            call theta_pair(x(TH,j), thv, omv)
+            v(1) = -log10(fr(1,j)); v(2) = x(ZN,j)*1e3_dp; v(3) = x(MN,j)*1e3_dp; v(4) = x(SO,j)*1e3_dp
+            v(5) = x(H,j)*1e3_dp; v(6) = fr(2,j); v(8) = x(P2,j); v(13) = eps(j)
+            if (incath(j)) then
+                v(7) = x(P1,j)
+                v(9) = x(ZH,j)*Vm(ZH); v(10) = x(ZM,j)*Vm(ZM); v(11) = x(MO,j)*Vm(MO); v(12) = thv
+            end if
+            write(pfu, '(A15,1X,A15)', advance='no') fmt_e(t/3600.0_dp), fmt_e(xc(j)*1e4_dp)
+            do k = 1, NPV
+                if (pv_on(k)) write(pfu, '(1X,A15)', advance='no') fmt_e(v(k))
+            end do
+            write(pfu, '(A)') ''
+        end do
+    end subroutine write_profile
+
+    subroutine output_finish(t, x)
+        !! The last row's profile, if not already written; close the profile file.
+        real(dp), intent(in) :: t, x(N,nc)
+        real(dp) :: fr(4,nc), eps(nc)
+        logical :: fail
+        if (.not. prof_on) return
+        if (last_prof /= prof_rows - 1) then
+            call free_of(x, .true., fr, fail)
+            call porosity(x, eps)
+            call write_profile(t, x, fr, eps)
+        end if
+        close(pfu)
+        prof_on = .false.
+    end subroutine output_finish
 
     ! ================================================================== protocol
     subroutine parse_protocol(text, steps, nsteps)
@@ -1636,6 +1811,7 @@ contains
         h_max = p%write_interval
         if (p%dt_max > 0.0_dp) h_max = p%dt_max
         open(newunit=ou, file=trim(out_file), status='replace', action='write')
+        call output_setup()
         call write_header()
         call initial_state(state, fail)
         if (fail) call die('the initial state could not be solved')
@@ -1775,6 +1951,7 @@ contains
             nsteps_done = n_done
             mAhg_out = mAhg
             close(ou)
+            call output_finish(t, state)
             if (len_trim(p%restart_write) > 0) call write_restart(trim(p%restart_write))
         end subroutine done
 

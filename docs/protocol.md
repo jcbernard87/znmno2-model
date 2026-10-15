@@ -72,3 +72,11 @@ A physical limit is judged at the last converged sub-step, and the time and capa
 ## Restart files
 
 `restart_write = '<file>'` (group `&output`) writes the state at the end of a run: every cell's unknowns, the reference state the physical limits are measured against (the first run's initial state), the time, the capacity and the last current, in plain text with 17 significant digits (an exact round trip). `restart_read = '<file>'` starts a run from it: the protocol runs from its first step at that state, time and capacity, and a first constant-voltage step starts its current search from the stored current. A run continued this way repeats the run it continues exactly (in Python, and byte for byte in the Fortran and C++ programs; `tests/test_restart.py`); its first output row repeats the last row of that run. The mesh must match the input. The three implementations read each other's files. Corrected mode only; both are empty (off) by default.
+
+## Choosing the output
+
+Both are in `&output`, corrected mode, and off by default (the output is then as above).
+
+- **Columns** (`columns`): the time-series columns to write, by name, comma- or blank-separated, case-insensitive (e.g. `columns = 'V, pH_cath, theta'`). `t_h` is always written; the others keep their order and format. An unknown name stops the run.
+- **Profiles** (`profile_file`): the state against position, in one long table: a header row, then one row per cell per profile time with `t_h` [h], `x_um` [µm] and the variables of `Model.profiles`: `pH`, `Zn_M`, `Mn_M`, `S_M`, `H_M` (totals [M]), `Zn_free_M` [M], `phi1`, `phi2` [V], `vf_ZHS`, `vf_ZMO`, `vf_MnO2`, `theta` and `eps`, each ES15.7 as in the time series. `profile_vars` chooses some (default: all). A value that does not exist in a cell (the solid potential and the solids outside the cathode) is NaN. A profile reuses its row's speciation, so it never changes the run.
+- **When:** profiles are written on output rows, so they never change the time steps: with every `profile_every`-th row (counting the first as 0), at the first row at or after each time in `profile_times` [s], and with the last row.

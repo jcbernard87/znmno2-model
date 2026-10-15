@@ -119,6 +119,11 @@ class Params:
     write_interval: float = 60.0    # [s]
     restart_read: str = ""          # start from this restart file (#16); '' = the initial state
     restart_write: str = ""         # write the final state to this restart file; '' = none
+    columns: str = ""               # time-series columns to write (comma-separated; #15); '' = all
+    profile_file: str = ""          # write profiles against x to this file; '' = none
+    profile_vars: str = ""          # profile variables (comma-separated; '' = all of Model.profiles)
+    profile_every: int = 0          # a profile with every N-th output row (0: only at profile_times and the end)
+    profile_times: str = ""         # [s] a profile at the first output row at or after each of these times
     newton_tol: float = 1.0e-9      # Newton update tolerance (scaled)
     newton_max_iter: int = 30       # Newton iterations per (sub-)step
     dt_mode: str = "fixed"          # fixed: steps of dt | adaptive: chosen from the local error (docs/protocol.md)
@@ -135,6 +140,8 @@ class Params:
         for name, allowed in choices.items():
             if getattr(self, name) not in allowed:
                 raise ValueError(f"{name} must be one of {allowed}, got {getattr(self, name)!r}")
+        if self.profile_every < 0:
+            raise ValueError(f"profile_every must be at least 0, got {self.profile_every}")
 
     def with_(self, **changes) -> "Params":
         return replace(self, **changes)

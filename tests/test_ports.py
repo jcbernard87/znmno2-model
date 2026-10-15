@@ -86,7 +86,7 @@ def test_fortran_and_cpp_parameters_match_python():
     d = Params()
     names = [f.name for f in dataclasses.fields(Params)]
     f90 = _defaults_from(ROOT / "fortran" / "params.f90",
-                         r"^\s+(?:real\(dp\)|integer|logical|character\(len=512\)) :: (\w+) = ('[^']*'|\S+)")
+                         r"^\s+(?:real\(dp\)|integer|logical|character\(len=\d+\)) :: (\w+) = ('[^']*'|\S+)")
     cpp = _defaults_from(ROOT / "cpp" / "znmno2.cpp", r"^    (?:double|int|bool|std::string) (\w+) = ([^;]+);")
     for n in names:
         assert n in f90 and _same(getattr(d, n), f90[n]), f"fortran default of {n}"

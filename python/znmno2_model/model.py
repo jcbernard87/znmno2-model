@@ -716,15 +716,16 @@ class Model:
         eps = self.porosity(x)[-1]
         return float(x[-1, P1] - I * 0.5 * m.dx[-1] / (p.sigma * (1.0 - eps) * m.area[-1]))
 
-    def profiles(self, x):
+    def profiles(self, x, free=None):
         """Profiles across the cell for plotting: position [um] and per-cell quantities (NaN where a
-        quantity does not exist, e.g. solids outside the cathode)."""
+        quantity does not exist, e.g. solids outside the cathode). free: the speciation of x, if at hand."""
         c = self.cath
-        free = self.free(x)
+        if free is None:
+            free = self.free(x)
         nanc = lambda v: np.where(c, v, np.nan)
         th, _ = theta_pair(x[:, TH])
         return dict(x_um=self.mesh.x * 1e4, pH=-np.log10(free[:, 0]), Zn_M=x[:, ZN] * 1e3, Mn_M=x[:, MN] * 1e3,
-                    S_M=x[:, SO] * 1e3, H_M=x[:, H] * 1e3, Zn_free_M=free[:, 1], phi2=x[:, P2],
+                    S_M=x[:, SO] * 1e3, H_M=x[:, H] * 1e3, Zn_free_M=free[:, 1], phi1=nanc(x[:, P1]), phi2=x[:, P2],
                     vf_ZHS=nanc(x[:, ZH] * self.V[ZH]), vf_ZMO=nanc(x[:, ZM] * self.V[ZM]),
                     vf_MnO2=nanc(x[:, MO] * self.V[MO]), theta=nanc(th), eps=self.porosity(x))
 

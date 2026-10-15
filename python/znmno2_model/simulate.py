@@ -17,6 +17,8 @@ THETA_TOL = 1.0e-6    # a full (or empty) host is located to within this theta, 
 
 COLUMNS = ("t_h", "V", "I_mAg", "mAhg", "step", "pH_cath", "pH_probe", "pH_anode", "Zn_cath_M", "Mn_cath_M",
            "S_cath_M", "vf_MnO2", "vf_ZMO", "vf_ZHS", "theta", "i_R1_mAg", "i_R2_mAg", "i_R3_mAg", "eps_cath")
+PROFILE_VARS = ("pH", "Zn_M", "Mn_M", "S_M", "H_M", "Zn_free_M", "phi1", "phi2", "vf_ZHS", "vf_ZMO", "vf_MnO2", "theta",
+                "eps")                                      # Model.profiles, less x_um
 
 
 @dataclass
@@ -26,6 +28,9 @@ class Result:
     steps: int = 0
     final_state: Any = None
     states: list = field(default_factory=list)      # (t_h, state) at every row, with run(..., keep_states=True)
+    columns: str = ""                               # the time-series columns to write ('' = all; output.py)
+    profiles: list = field(default_factory=list)    # [(t [s], x [um], {variable: values})] (output.py)
+    profile_vars: tuple = ()
 
     @property
     def array(self) -> np.ndarray:
@@ -35,10 +40,13 @@ class Result:
         return self.array[:, COLUMNS.index(name)]
 
     def write(self, path) -> None:
+        from .output import choose
+        chosen = choose(COLUMNS[1:], self.columns, "output column")
+        keep = [0] + [COLUMNS.index(c) for c in chosen]          # the time always
         with open(path, "w") as fh:
-            fh.write(" ".join(f"{c:>15}" for c in COLUMNS) + "\n")
+            fh.write(" ".join(f"{COLUMNS[i]:>15}" for i in keep) + "\n")
             for r in self.rows:
-                fh.write(" ".join(f"{int(v):>15d}" if i == 4 else f"{v:15.7E}" for i, v in enumerate(r)) + "\n")
+                fh.write(" ".join(f"{int(r[i]):>15d}" if i == 4 else f"{r[i]:15.7E}" for i in keep) + "\n")
 
 
 class Stepper:
@@ -51,6 +59,12 @@ class Stepper:
         self.c = m.region == CATH
         probe = np.flatnonzero(m.region == PROBE)
         self.i_probe = int(probe[len(probe) // 2]) if len(probe) else 0
+        from .output import ProfileRecorder
+        self.recorder = ProfileRecorder(p, PROFILE_VARS, self.profile)
+
+    def profile(self, x, free):
+        prof = self.model.profiles(x, free)
+        return prof.pop("x_um"), prof
 
     def initial_state(self):
         self.x0 = self.model.initial_state()
@@ -112,6 +126,7 @@ class Stepper:
         if self.keep_states:
             self.states.append((t / 3600.0, x.copy()))
         free = m.free(x)
+        self.recorder.row(t, x, free)
         c, vol = self.c, self.vol
         vc = vol[c]
         eps = m.porosity(x)
@@ -142,6 +157,8 @@ def run(p: Params, *, max_steps=None, keep_states=False) -> Result:
         st.x0 = rs["arrays"]["x0"].copy()                # the limits stay measured against the first run's start
         start = (rs["arrays"]["x"].copy(), rs["t"], rs["mAhg"], rs["I"])
     r = run_protocol(st, max_steps=max_steps, result=Result(), start=start)
+    r.columns = p.columns
+    st.recorder.finish(r, p.profile_file, st.model.free)
     if p.restart_write:
         t, mAhg, I = r.end
         restart.write(p.restart_write, "corrected", t, mAhg, I, [("x", r.final_state), ("x0", st.x0)])

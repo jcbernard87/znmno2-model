@@ -13,13 +13,17 @@ program znmno2
     character(len=512) :: file = 'znmno2_out.txt'
     real(8) :: write_interval = 60.0d0
     character(len=512) :: restart_read = '', restart_write = ''   ! read again by the corrected model (params.f90)
+    character(len=1024) :: columns = '', profile_vars = '', profile_times = ''   ! these too
+    character(len=512) :: profile_file = ''
+    integer :: profile_every = 0
     character(len=512) :: input_file
     character(len=128) :: reason
     character(len=512) :: out_file
     integer :: u, ios, nsteps
     real(8) :: mAhg
     namelist /run/ mode, data_dir
-    namelist /output/ file, write_interval, restart_read, restart_write
+    namelist /output/ file, write_interval, restart_read, restart_write, columns, profile_file, profile_vars, &
+        profile_every, profile_times
 
     input_file = 'znmno2.nml'
     if (command_argument_count() >= 1) call get_command_argument(1, input_file)
@@ -33,6 +37,8 @@ program znmno2
     if (ios > 0) call fail('error reading &output')
     if (trim(mode) /= 'corrected' .and. (len_trim(restart_read) > 0 .or. len_trim(restart_write) > 0)) &
         call fail('restart files need mode=''corrected''')
+    if (trim(mode) /= 'corrected' .and. (len_trim(columns) > 0 .or. len_trim(profile_file) > 0)) &
+        call fail('columns and profiles need mode=''corrected''')
     select case (trim(mode))
     case ('faithful_charge', 'faithful_phcell')
         call run_faithful(mode(10:15), u, trim(data_dir), trim(file), reason)

@@ -47,6 +47,9 @@ def _lit(v):
 
 
 def _input(path, out, over, mode="corrected", faithful=None):
+    unplaced = set(over) - {n for names in GROUPS.values() for n in names}
+    if unplaced:                                   # a value no group takes would silently not reach the program
+        raise KeyError(f"not input names: {sorted(unplaced)}")
     lines = [f"&run mode = '{mode}', data_dir = '{DATA}' /"]
     if faithful:
         lines.append("&faithful " + ", ".join(f"{k} = {v}" for k, v in faithful.items()) + " /")
@@ -286,3 +289,17 @@ def test_python_rejects_a_repeated_group(tmp_path):
     nml.write_text("&cell\n  n_sep = 6\n/\n&cell\n  n_cath = 8\n/\n")
     with pytest.raises(ValueError, match="namelist group &cell appears twice"):
         load(nml)
+
+
+def test_input_builder_places_every_value(tmp_path):
+    """Every value the port tests set reaches the input file (the builder refuses a name no group takes), and
+    Python reads the file back to those values."""
+    from znmno2_model.namelist import load
+    over = {**FAST, **CASES["zmc_transfer"], "dt_mode": "adaptive", "rtol": 1e-5}
+    nml = tmp_path / "in.nml"
+    _input(nml, tmp_path / "o.txt", over)
+    p, _ = load(nml)
+    for k, v in over.items():
+        assert getattr(p, k) == v, k
+    with pytest.raises(KeyError):
+        _input(nml, tmp_path / "o.txt", {"not_a_name": 1})

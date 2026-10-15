@@ -96,7 +96,7 @@ module zn_params
         character(len=512) :: equilibria_db = ''           ! PHREEQC database for the equilibria; empty: Herrmann et al. (2023) Table S1
         real(dp) :: D_OH = 5.27e-05_dp                     ! species diffusion coefficients for transport = quasi [cm2/s]
         real(dp) :: D_HSO4 = 1.33e-05_dp                   ! HSO4- diffusion coefficient (transport = quasi) [cm2/s]
-        real(dp) :: D_complex = 5e-06_dp                   ! every other complex (assumed; plan Q-1)
+        real(dp) :: D_complex = 5e-06_dp                   ! every other complex (assumed, no cited source yet; #1)
         real(dp) :: R = 8.314462618_dp                     ! gas constant [J/mol/K]
         real(dp) :: T = 298.15_dp                          ! temperature [K]
         real(dp) :: F = 96485.33212_dp                     ! Faraday constant [C/mol]

@@ -1210,7 +1210,7 @@ struct Params {
     std::string equilibria_db = "";           // PHREEQC database for the equilibria; empty: Herrmann et al. (2023) Table S1
     double D_OH = 5.27e-05;                   // species diffusion coefficients for transport = quasi [cm2/s]
     double D_HSO4 = 1.33e-05;                 // HSO4- diffusion coefficient (transport = quasi) [cm2/s]
-    double D_complex = 5e-06;                 // every other complex (assumed; plan Q-1)
+    double D_complex = 5e-06;                 // every other complex (assumed, no cited source yet; #1)
     double R = 8.314462618;                   // gas constant [J/mol/K]
     double T = 298.15;                        // temperature [K]
     double F = 96485.33212;                   // Faraday constant [C/mol]

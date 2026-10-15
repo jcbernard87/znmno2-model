@@ -101,7 +101,7 @@ class Params:
     equilibria_db: str = ""         # PHREEQC database for the equilibria; empty: Herrmann et al. (2023) Table S1
     D_OH: float = 5.27e-5           # species diffusion coefficients for transport = quasi [cm2/s]
     D_HSO4: float = 1.33e-5         # HSO4- diffusion coefficient (transport = quasi) [cm2/s]
-    D_complex: float = 5.0e-6       # every other complex (assumed; plan Q-1)
+    D_complex: float = 5.0e-6       # every other complex (assumed, no cited source yet; #1)
     # --- constants ---
     R: float = 8.314462618          # gas constant [J/mol/K]
     T: float = 298.15               # temperature [K]

@@ -117,6 +117,8 @@ class Params:
     V_max: float = 1.9              # default upper cutoff [V]
     dt: float = 10.0                # [s]
     write_interval: float = 60.0    # [s]
+    restart_read: str = ""          # start from this restart file (#16); '' = the initial state
+    restart_write: str = ""         # write the final state to this restart file; '' = none
     newton_tol: float = 1.0e-9      # Newton update tolerance (scaled)
     newton_max_iter: int = 30       # Newton iterations per (sub-)step
     dt_mode: str = "fixed"          # fixed: steps of dt | adaptive: chosen from the local error (docs/protocol.md)

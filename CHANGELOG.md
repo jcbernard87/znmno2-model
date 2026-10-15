@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Restart files** (all three implementations; #16): `restart_write` writes the final state, the reference state of the limits, time, capacity and current; `restart_read` starts a run from it. A continued run repeats the run it continues exactly; the implementations read each other's files.
+- **Fortran program:** an error reading `&run`, `&output` or `&faithful` exited with status 0 (`stop 'message'`); it now prints `error: ...` and exits with status 1, like the model's other errors.
+- **CI** (#20): every supported Python version (3.9-3.13), coverage in the run summary; the port tests' input builder refuses names it cannot place.
+
 ## 0.3.0 (2026-10-14)
 
 - **Host-to-ZMO transfer** (`zmc_transfer`, off by default; all three implementations; #5): the insertion host's Mn is a new unknown (N = 13), so a nearly full host can turn into ZMO at a finite rate, smooth in θ around z = 0.985 z_max (the original programs' transfer, deviation M-9). The transferred Mn takes z_ZMO Zn along; the host keeps the rest; Zn, Mn, S and H stay conserved to round-off. The default output is unchanged.

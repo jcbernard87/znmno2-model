@@ -68,3 +68,7 @@ A physical limit is judged at the last converged sub-step, and the time and capa
 | `theta` | mean insertion fraction of the host |
 | `i_R1_mAg`, `i_R2_mAg`, `i_R3_mAg` | each reaction's current, summed over the cathode [mA/g] (positive = anodic) |
 | `eps_cath` | mean cathode porosity |
+
+## Restart files
+
+`restart_write = '<file>'` (group `&output`) writes the state at the end of a run: every cell's unknowns, the reference state the physical limits are measured against (the first run's initial state), the time, the capacity and the last current, in plain text with 17 significant digits (an exact round trip). `restart_read = '<file>'` starts a run from it: the protocol runs from its first step at that state, time and capacity, and a first constant-voltage step starts its current search from the stored current. A run continued this way repeats the run it continues exactly (in Python, and byte for byte in the Fortran and C++ programs; `tests/test_restart.py`); its first output row repeats the last row of that run. The mesh must match the input. The three implementations read each other's files. Corrected mode only; both are empty (off) by default.

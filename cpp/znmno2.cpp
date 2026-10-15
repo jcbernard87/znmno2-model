@@ -18,7 +18,9 @@
 #include <cctype>
 #include <cmath>
 #include <cstdio>
+#include <exception>
 #include <fstream>
+#include <functional>
 #include <limits>
 #include <map>
 #include <regex>
@@ -1224,6 +1226,8 @@ struct Params {
     double V_max = 1.9;                       // default upper cutoff [V]
     double dt = 10.0;                         // [s]
     double write_interval = 60.0;             // [s]
+    std::string restart_read = "";            // start from this restart file (#16); '' = the initial state
+    std::string restart_write = "";           // write the final state to this restart file; '' = none
     double newton_tol = 1e-09;                // Newton update tolerance (scaled)
     int newton_max_iter = 30;                 // Newton iterations per (sub-)step
     std::string dt_mode = "fixed";            // fixed: steps of dt | adaptive: chosen from the local error (docs/protocol.md)
@@ -1244,8 +1248,8 @@ struct Fields {
         reals = {{"a_cell", &p.A_cell}, {"l_probe", &p.L_probe}, {"eps_probe", &p.eps_probe}, {"tau_probe", &p.tau_probe}, {"l_sep", &p.L_sep}, {"eps_sep", &p.eps_sep}, {"tau_factor_sep", &p.tau_factor_sep}, {"bruggeman_sep", &p.bruggeman_sep}, {"l_cath", &p.L_cath}, {"eps_cath", &p.eps_cath}, {"tau_factor_cath", &p.tau_factor_cath}, {"bruggeman_cath", &p.bruggeman_cath}, {"sigma", &p.sigma}, {"vf_mno2", &p.vf_MnO2}, {"vf_zmo", &p.vf_ZMO}, {"vf_host", &p.vf_host}, {"vf_zhs", &p.vf_ZHS}, {"m_mno2", &p.M_MnO2}, {"rho_mno2", &p.rho_MnO2}, {"rho_zmo", &p.rho_ZMO}, {"rho_host", &p.rho_host}, {"m_zhs", &p.M_ZHS}, {"rho_zhs", &p.rho_ZHS}, {"r_mno2", &p.r_MnO2}, {"r_zmo", &p.r_ZMO}, {"r_host", &p.r_host}, {"r_zhs", &p.r_ZHS}, {"z_zmo", &p.z_ZMO}, {"zmin", &p.zmin}, {"zmax", &p.zmax}, {"theta0", &p.theta0}, {"mass_am", &p.mass_AM}, {"c_znso4", &p.c_ZnSO4}, {"c_mnso4", &p.c_MnSO4}, {"c_h2so4", &p.c_H2SO4}, {"d_zn", &p.D_Zn}, {"d_mn", &p.D_Mn}, {"d_so4", &p.D_SO4}, {"d_h", &p.D_H}, {"u1", &p.U1}, {"k1", &p.k1}, {"alpha1", &p.alpha1}, {"u2", &p.U2}, {"k2", &p.k2}, {"alpha2", &p.alpha2}, {"a_seed_r2", &p.a_seed_R2}, {"k3", &p.k3}, {"alpha3", &p.alpha3}, {"v_at_zmin", &p.V_at_zmin}, {"v_at_zmax", &p.V_at_zmax}, {"c_ref3", &p.c_ref3}, {"k_an", &p.k_an}, {"alpha_an", &p.alpha_an}, {"logk_zhs", &p.logK_ZHS}, {"k_zhs", &p.k_ZHS}, {"a_seed_zhs", &p.a_seed_ZHS}, {"ph_fixed", &p.pH_fixed}, {"zhs_nucleation", &p.zhs_nucleation}, {"logk_zno", &p.logK_ZnO}, {"logk_znoh2", &p.logK_ZnOH2}, {"k_zno", &p.k_ZnO}, {"k_znoh2", &p.k_ZnOH2}, {"m_zno", &p.M_ZnO}, {"rho_zno", &p.rho_ZnO}, {"m_znoh2", &p.M_ZnOH2}, {"rho_znoh2", &p.rho_ZnOH2}, {"r3_end_width", &p.r3_end_width}, {"u3_nernst", &p.U3_nernst}, {"d_oh", &p.D_OH}, {"d_hso4", &p.D_HSO4}, {"d_complex", &p.D_complex}, {"k_transfer", &p.k_transfer}, {"z_transfer", &p.z_transfer}, {"r", &p.R}, {"t", &p.T}, {"f", &p.F}, {"v_min", &p.V_min}, {"v_max", &p.V_max}, {"dt", &p.dt}, {"write_interval", &p.write_interval}, {"newton_tol", &p.newton_tol}, {"rtol", &p.rtol}, {"atol", &p.atol}, {"dt_min", &p.dt_min}, {"dt_max", &p.dt_max}};
         ints = {{"n_probe", &p.n_probe}, {"n_sep", &p.n_sep}, {"n_cath", &p.n_cath}, {"cycles", &p.cycles}, {"newton_max_iter", &p.newton_max_iter}};
         bools = {{"r1_on", &p.R1_on}, {"r2_on", &p.R2_on}, {"r3_on", &p.R3_on}, {"zno_on", &p.ZnO_on}, {"znoh2_on", &p.ZnOH2_on}, {"end_on_cutoff", &p.end_on_cutoff}, {"zmc_transfer", &p.zmc_transfer}};
-        strs = {{"ph_mode", &p.ph_mode}, {"species", &p.species}, {"transport", &p.transport}, {"basis", &p.basis}, {"zhs", &p.zhs}, {"r3_ocp", &p.r3_ocp}, {"logk_file", &p.logk_file}, {"equilibria_db", &p.equilibria_db}, {"steps", &p.steps}, {"dt_mode", &p.dt_mode}};
-        group = {{"mode", "run"}, {"data_dir", "run"}, {"a_cell", "cell"}, {"l_probe", "cell"}, {"eps_probe", "cell"}, {"tau_probe", "cell"}, {"l_sep", "cell"}, {"eps_sep", "cell"}, {"tau_factor_sep", "cell"}, {"bruggeman_sep", "cell"}, {"l_cath", "cell"}, {"eps_cath", "cell"}, {"tau_factor_cath", "cell"}, {"bruggeman_cath", "cell"}, {"n_probe", "cell"}, {"n_sep", "cell"}, {"n_cath", "cell"}, {"sigma", "cell"}, {"vf_mno2", "solids"}, {"vf_zmo", "solids"}, {"vf_host", "solids"}, {"vf_zhs", "solids"}, {"m_mno2", "solids"}, {"rho_mno2", "solids"}, {"rho_zmo", "solids"}, {"rho_host", "solids"}, {"m_zhs", "solids"}, {"rho_zhs", "solids"}, {"r_mno2", "solids"}, {"r_zmo", "solids"}, {"r_host", "solids"}, {"r_zhs", "solids"}, {"z_zmo", "solids"}, {"zmin", "solids"}, {"zmax", "solids"}, {"theta0", "solids"}, {"mass_am", "solids"}, {"c_znso4", "electrolyte"}, {"c_mnso4", "electrolyte"}, {"c_h2so4", "electrolyte"}, {"d_zn", "electrolyte"}, {"d_mn", "electrolyte"}, {"d_so4", "electrolyte"}, {"d_h", "electrolyte"}, {"u1", "reactions"}, {"k1", "reactions"}, {"alpha1", "reactions"}, {"u2", "reactions"}, {"k2", "reactions"}, {"alpha2", "reactions"}, {"a_seed_r2", "reactions"}, {"k3", "reactions"}, {"alpha3", "reactions"}, {"v_at_zmin", "reactions"}, {"v_at_zmax", "reactions"}, {"c_ref3", "reactions"}, {"k_an", "reactions"}, {"alpha_an", "reactions"}, {"logk_zhs", "reactions"}, {"k_zhs", "reactions"}, {"a_seed_zhs", "reactions"}, {"ph_mode", "options"}, {"ph_fixed", "options"}, {"species", "options"}, {"transport", "options"}, {"basis", "options"}, {"r1_on", "options"}, {"r2_on", "options"}, {"r3_on", "options"}, {"zhs", "options"}, {"zhs_nucleation", "options"}, {"zno_on", "options"}, {"znoh2_on", "options"}, {"logk_zno", "options"}, {"logk_znoh2", "options"}, {"k_zno", "options"}, {"k_znoh2", "options"}, {"m_zno", "options"}, {"rho_zno", "options"}, {"m_znoh2", "options"}, {"rho_znoh2", "options"}, {"r3_ocp", "options"}, {"r3_end_width", "options"}, {"u3_nernst", "options"}, {"logk_file", "options"}, {"equilibria_db", "options"}, {"d_oh", "options"}, {"d_hso4", "options"}, {"d_complex", "options"}, {"zmc_transfer", "options"}, {"k_transfer", "options"}, {"z_transfer", "options"}, {"r", "constants"}, {"t", "constants"}, {"f", "constants"}, {"steps", "protocol"}, {"cycles", "protocol"}, {"end_on_cutoff", "protocol"}, {"v_min", "protocol"}, {"v_max", "protocol"}, {"dt", "numerics"}, {"newton_tol", "numerics"}, {"newton_max_iter", "numerics"}, {"dt_mode", "numerics"}, {"rtol", "numerics"}, {"atol", "numerics"}, {"dt_min", "numerics"}, {"dt_max", "numerics"}, {"file", "output"}, {"write_interval", "output"}};
+        strs = {{"ph_mode", &p.ph_mode}, {"species", &p.species}, {"transport", &p.transport}, {"basis", &p.basis}, {"zhs", &p.zhs}, {"r3_ocp", &p.r3_ocp}, {"logk_file", &p.logk_file}, {"equilibria_db", &p.equilibria_db}, {"steps", &p.steps}, {"dt_mode", &p.dt_mode}, {"restart_read", &p.restart_read}, {"restart_write", &p.restart_write}};
+        group = {{"mode", "run"}, {"data_dir", "run"}, {"a_cell", "cell"}, {"l_probe", "cell"}, {"eps_probe", "cell"}, {"tau_probe", "cell"}, {"l_sep", "cell"}, {"eps_sep", "cell"}, {"tau_factor_sep", "cell"}, {"bruggeman_sep", "cell"}, {"l_cath", "cell"}, {"eps_cath", "cell"}, {"tau_factor_cath", "cell"}, {"bruggeman_cath", "cell"}, {"n_probe", "cell"}, {"n_sep", "cell"}, {"n_cath", "cell"}, {"sigma", "cell"}, {"vf_mno2", "solids"}, {"vf_zmo", "solids"}, {"vf_host", "solids"}, {"vf_zhs", "solids"}, {"m_mno2", "solids"}, {"rho_mno2", "solids"}, {"rho_zmo", "solids"}, {"rho_host", "solids"}, {"m_zhs", "solids"}, {"rho_zhs", "solids"}, {"r_mno2", "solids"}, {"r_zmo", "solids"}, {"r_host", "solids"}, {"r_zhs", "solids"}, {"z_zmo", "solids"}, {"zmin", "solids"}, {"zmax", "solids"}, {"theta0", "solids"}, {"mass_am", "solids"}, {"c_znso4", "electrolyte"}, {"c_mnso4", "electrolyte"}, {"c_h2so4", "electrolyte"}, {"d_zn", "electrolyte"}, {"d_mn", "electrolyte"}, {"d_so4", "electrolyte"}, {"d_h", "electrolyte"}, {"u1", "reactions"}, {"k1", "reactions"}, {"alpha1", "reactions"}, {"u2", "reactions"}, {"k2", "reactions"}, {"alpha2", "reactions"}, {"a_seed_r2", "reactions"}, {"k3", "reactions"}, {"alpha3", "reactions"}, {"v_at_zmin", "reactions"}, {"v_at_zmax", "reactions"}, {"c_ref3", "reactions"}, {"k_an", "reactions"}, {"alpha_an", "reactions"}, {"logk_zhs", "reactions"}, {"k_zhs", "reactions"}, {"a_seed_zhs", "reactions"}, {"ph_mode", "options"}, {"ph_fixed", "options"}, {"species", "options"}, {"transport", "options"}, {"basis", "options"}, {"r1_on", "options"}, {"r2_on", "options"}, {"r3_on", "options"}, {"zhs", "options"}, {"zhs_nucleation", "options"}, {"zno_on", "options"}, {"znoh2_on", "options"}, {"logk_zno", "options"}, {"logk_znoh2", "options"}, {"k_zno", "options"}, {"k_znoh2", "options"}, {"m_zno", "options"}, {"rho_zno", "options"}, {"m_znoh2", "options"}, {"rho_znoh2", "options"}, {"r3_ocp", "options"}, {"r3_end_width", "options"}, {"u3_nernst", "options"}, {"logk_file", "options"}, {"equilibria_db", "options"}, {"d_oh", "options"}, {"d_hso4", "options"}, {"d_complex", "options"}, {"zmc_transfer", "options"}, {"k_transfer", "options"}, {"z_transfer", "options"}, {"r", "constants"}, {"t", "constants"}, {"f", "constants"}, {"steps", "protocol"}, {"cycles", "protocol"}, {"end_on_cutoff", "protocol"}, {"v_min", "protocol"}, {"v_max", "protocol"}, {"dt", "numerics"}, {"newton_tol", "numerics"}, {"newton_max_iter", "numerics"}, {"dt_mode", "numerics"}, {"rtol", "numerics"}, {"atol", "numerics"}, {"dt_min", "numerics"}, {"dt_max", "numerics"}, {"file", "output"}, {"write_interval", "output"}, {"restart_read", "output"}, {"restart_write", "output"}};
     }
 };
 
@@ -1254,6 +1258,8 @@ constexpr double LN2 = 0.6931471805599453094;
 const double INF = std::numeric_limits<double>::infinity();
 
 [[noreturn]] void die(const std::string& msg) { throw std::runtime_error(msg); }
+
+
 
 // x(k, j): unknown k = 1..rows of cell j = 1..cols, stored column by column (as Fortran)
 struct Mat {
@@ -1264,6 +1270,54 @@ struct Mat {
     double& operator()(int k, int j) { return d[static_cast<std::size_t>(j - 1) * rows + (k - 1)]; }
     double operator()(int k, int j) const { return d[static_cast<std::size_t>(j - 1) * rows + (k - 1)]; }
 };
+
+// ============================== restart files (#16; see restart.py in Python) ==============================
+// the state, the reference state x0, time, capacity and last current, 17 significant digits (an exact round trip)
+void write_restart(const std::string& path, double t, double mAhg, double I, const Mat& x, const Mat& x0) {
+    std::FILE* f = std::fopen(path.c_str(), "w");
+    if (!f) throw std::runtime_error("cannot write " + path);
+    std::fprintf(f, "# znmno2-model restart 1\nmodel corrected\nt %.16e\nmAhg %.16e\nI %.16e\n", t, mAhg, I);
+    for (const auto& [name, a] : {std::pair<const char*, const Mat*>{"x", &x}, {"x0", &x0}}) {
+        std::fprintf(f, "array %s %d %d\n", name, a->cols, a->rows);
+        for (double v : a->d) std::fprintf(f, "%.16e\n", v);   // column j holds cell j's unknowns: row-major (cell, unknown)
+    }
+    std::fclose(f);
+}
+
+void read_restart(const std::string& path, Mat& x, Mat& x0, double& t, double& mAhg, double& I) {
+    std::ifstream in(path);
+    if (!in) throw std::runtime_error("cannot read " + path);
+    std::string line;
+    if (!std::getline(in, line) || line != "# znmno2-model restart 1")
+        throw std::runtime_error(path + ": not a restart file of this model");
+    bool got_model = false, got_x = false, got_x0 = false;
+    while (std::getline(in, line)) {
+        std::istringstream ls(line);
+        std::string word;
+        if (!(ls >> word)) continue;
+        if (word == "model") {
+            std::string mdl;
+            ls >> mdl;
+            if (mdl != "corrected") throw std::runtime_error("restart file does not match the input: model " + mdl);
+            got_model = true;
+        } else if (word == "t") { ls >> t; }
+        else if (word == "mAhg") { ls >> mAhg; }
+        else if (word == "I") { ls >> I; }
+        else if (word == "array") {
+            std::string name;
+            int n, k;
+            ls >> name >> n >> k;
+            Mat* a = name == "x" ? &x : (name == "x0" ? &x0 : nullptr);
+            if (!a || n != a->cols || k != a->rows) throw std::runtime_error("restart file does not match the input: array " + name);
+            for (double& v : a->d) {
+                if (!std::getline(in, line)) throw std::runtime_error(path + ": truncated");
+                v = std::strtod(line.c_str(), nullptr);
+            }
+            (name == "x" ? got_x : got_x0) = true;
+        }
+    }
+    if (!got_model || !got_x || !got_x0) throw std::runtime_error("restart file does not match the input: missing entries");
+}
 
 // A(i, k, j): row i, column k of the block of cell j, stored row-major per block (as the BAND solver reads it)
 struct Blk {
@@ -2772,8 +2826,14 @@ struct Driver {
             die("the initial state could not be solved");
         }
         m.x0_state = state;
-        double t = 0.0, I = 0.0;
+        double t = 0.0, I = 0.0, I_restart = 0.0;
         mAhg = 0.0; n_done = 0;
+        if (!p.restart_read.empty()) read_restart(p.restart_read, state, m.x0_state, t, mAhg, I_restart);
+        // write the restart file on every normal exit from the run (not while an error unwinds it)
+        struct RestartOnExit {
+            std::function<void()> f;
+            ~RestartOnExit() { if (std::uncaught_exceptions() == 0) f(); }
+        } restart_on_exit{[&]() { if (!p.restart_write.empty()) write_restart(p.restart_write, t, mAhg, I, state, m.x0_state); }};
         auto first_current = [&](const Step& st) { return st.kind == "cc" ? st.I * 1.0e-3 * m.mass : 0.0; };
         // adaptive steps (see driver.py): backward Euler's local error, h/(h + hprev) times the weighted RMS of the new
         // state less the linear predictor through the two states before it; weights atol*scale + rtol*|x|, the scale 1
@@ -2803,6 +2863,7 @@ struct Driver {
         };
         I = first_current(steps[0]);
         m.write_row(t, state, mAhg, I, 1);
+        if (!p.restart_read.empty() && steps[0].kind == "cv") I = I_restart;  // as after the run it came from
         double last_write = t;
         std::string reason;
         const int nsteps = static_cast<int>(steps.size());
@@ -2993,6 +3054,8 @@ int main(int argc, char** argv) {
             std::printf("exit '%s' after %d steps, %.1f mAh/g; wrote %s\n", reason.c_str(), n_done, mAhg, out_file.c_str());
             return 0;
         }
+        if (!get("output", "restart_read", "").empty() || !get("output", "restart_write", "").empty())
+            throw std::runtime_error("restart files need mode='corrected'");
         if (mode == "faithful_charge") reason = run_faithful(false, nl, data_dir, file);
         else if (mode == "faithful_phcell") reason = run_faithful(true, nl, data_dir, file);
         else throw std::runtime_error("mode must be corrected, faithful_charge or faithful_phcell");

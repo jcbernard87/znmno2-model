@@ -12,24 +12,27 @@ program znmno2
     character(len=512) :: data_dir = 'python/znmno2_model/data'
     character(len=512) :: file = 'znmno2_out.txt'
     real(8) :: write_interval = 60.0d0
+    character(len=512) :: restart_read = '', restart_write = ''   ! read again by the corrected model (params.f90)
     character(len=512) :: input_file
     character(len=128) :: reason
     character(len=512) :: out_file
     integer :: u, ios, nsteps
     real(8) :: mAhg
     namelist /run/ mode, data_dir
-    namelist /output/ file, write_interval
+    namelist /output/ file, write_interval, restart_read, restart_write
 
     input_file = 'znmno2.nml'
     if (command_argument_count() >= 1) call get_command_argument(1, input_file)
     open(newunit=u, file=trim(input_file), status='old', action='read', iostat=ios)
-    if (ios /= 0) stop 'cannot open the input file'
+    if (ios /= 0) call fail('cannot open the input file')
     call check_groups(u)
     read(u, nml=run, iostat=ios)
-    if (ios > 0) stop 'error reading &run'
+    if (ios > 0) call fail('error reading &run')
     rewind(u)
     read(u, nml=output, iostat=ios)
-    if (ios > 0) stop 'error reading &output'
+    if (ios > 0) call fail('error reading &output')
+    if (trim(mode) /= 'corrected' .and. (len_trim(restart_read) > 0 .or. len_trim(restart_write) > 0)) &
+        call fail('restart files need mode=''corrected''')
     select case (trim(mode))
     case ('faithful_charge', 'faithful_phcell')
         call run_faithful(mode(10:15), u, trim(data_dir), trim(file), reason)
@@ -96,5 +99,12 @@ contains
         end do
         rewind(u)
     end subroutine check_groups
+
+    subroutine fail(msg)
+        !! Stop with the message and a non-zero exit status (as the model's own errors do).
+        character(len=*), intent(in) :: msg
+        write(*, '(A)') 'error: '//msg
+        stop 1
+    end subroutine fail
 
 end program znmno2

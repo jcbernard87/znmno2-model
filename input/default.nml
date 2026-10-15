@@ -50,4 +50,5 @@
 /
 &output
   file = 'znmno2_out.txt', write_interval = 60.0
+  restart_read = '', restart_write = ''   ! restart files: start from / write the final state (docs/protocol.md)
 /

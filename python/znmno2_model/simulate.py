@@ -9,7 +9,7 @@ from typing import Any
 import numpy as np
 
 from .driver import EVENT_DV, run_protocol
-from .model import CATH, MN, MO, P1, P2, PROBE, SO, TH, ZH, ZM, ZN, Model, sigmoid
+from .model import CATH, MN, MO, N, P1, P2, PROBE, SO, TH, ZH, ZM, ZN, Model, sigmoid
 from .params import Params
 
 LIMIT = 1.0e-3        # a physical limit is reached within this fraction (see Stepper.limit_reason)
@@ -133,7 +133,17 @@ class Stepper:
 def run(p: Params, *, max_steps=None, keep_states=False) -> Result:
     """Run the protocol. keep_states=True also keeps the full state at every output row (Result.states);
     Model(p).profiles(state) turns one into profiles across the cell."""
+    from . import restart
     st = Stepper(p, keep_states)
-    r = run_protocol(st, max_steps=max_steps, result=Result())
+    start = None
+    if p.restart_read:
+        shape = (st.model.mesh.n, N)
+        rs = restart.read(p.restart_read, "corrected", {"x": shape, "x0": shape})
+        st.x0 = rs["arrays"]["x0"].copy()                # the limits stay measured against the first run's start
+        start = (rs["arrays"]["x"].copy(), rs["t"], rs["mAhg"], rs["I"])
+    r = run_protocol(st, max_steps=max_steps, result=Result(), start=start)
+    if p.restart_write:
+        t, mAhg, I = r.end
+        restart.write(p.restart_write, "corrected", t, mAhg, I, [("x", r.final_state), ("x0", st.x0)])
     r.states = st.states
     return r

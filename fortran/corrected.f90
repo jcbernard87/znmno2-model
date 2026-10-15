@@ -1621,7 +1621,7 @@ contains
         real(dp), allocatable :: prog(:,:), redo(:,:)
         character(len=32) :: why
         character(len=512) :: file
-        real(dp) :: last_write
+        real(dp) :: last_write, I_restart
         ! adaptive steps (see driver.py): the next step, the step before this one and the state before it
         logical :: adaptive, have_prev, clipped
         real(dp) :: h_next, h_max, hprev, I_start, err, fac
@@ -1641,8 +1641,11 @@ contains
         if (fail) call die('the initial state could not be solved')
         x0_state = state
         t = 0.0_dp; mAhg = 0.0_dp; n_done = 0
+        I_restart = 0.0_dp
+        if (len_trim(p%restart_read) > 0) call read_restart(trim(p%restart_read))
         I = first_current(steps(1))
         call write_row(t, state, mAhg, I, 1)
+        if (len_trim(p%restart_read) > 0 .and. steps(1)%kind == 'cv') I = I_restart   ! as after the run it came from
         last_write = t
         reason = ''
         do k = 1, nsteps
@@ -1772,7 +1775,80 @@ contains
             nsteps_done = n_done
             mAhg_out = mAhg
             close(ou)
+            if (len_trim(p%restart_write) > 0) call write_restart(trim(p%restart_write))
         end subroutine done
+
+        ! ---- restart files (#16; see restart.py in Python): the state, the reference state x0, time, capacity
+        ! ---- and last current, 17 significant digits (an exact round trip)
+        subroutine write_restart(path)
+            character(len=*), intent(in) :: path
+            integer :: u, j, v
+            open(newunit=u, file=path, status='replace', action='write')
+            write(u,'(A)') '# znmno2-model restart 1'
+            write(u,'(A)') 'model corrected'
+            write(u,'(A,ES24.16E3)') 't ', t
+            write(u,'(A,ES24.16E3)') 'mAhg ', mAhg
+            write(u,'(A,ES24.16E3)') 'I ', I
+            write(u,'(A,I0,A,I0)') 'array x ', nc, ' ', N
+            do j = 1, nc
+                do v = 1, N
+                    write(u,'(ES24.16E3)') state(v,j)
+                end do
+            end do
+            write(u,'(A,I0,A,I0)') 'array x0 ', nc, ' ', N
+            do j = 1, nc
+                do v = 1, N
+                    write(u,'(ES24.16E3)') x0_state(v,j)
+                end do
+            end do
+            close(u)
+        end subroutine write_restart
+
+        subroutine read_restart(path)
+            character(len=*), intent(in) :: path
+            character(len=1024) :: line
+            character(len=64) :: word, aname, model_r
+            integer :: u, ios, nr, mr, j, v
+            logical :: got_x, got_x0
+            real(dp) :: val
+            open(newunit=u, file=path, status='old', action='read', iostat=ios)
+            if (ios /= 0) call die('cannot read '//path)
+            read(u,'(A)', iostat=ios) line
+            if (ios /= 0 .or. trim(line) /= '# znmno2-model restart 1') call die(path//': not a restart file of this model')
+            model_r = ''; got_x = .false.; got_x0 = .false.
+            do
+                read(u,'(A)', iostat=ios) line
+                if (ios /= 0) exit
+                if (len_trim(line) == 0) cycle
+                read(line,*) word
+                select case (trim(word))
+                case ('model')
+                    read(line,*) word, model_r
+                    if (trim(model_r) /= 'corrected') call die('restart file does not match the input: model '//trim(model_r))
+                case ('t')
+                    read(line,*) word, val; t = val
+                case ('mAhg')
+                    read(line,*) word, val; mAhg = val
+                case ('I')
+                    read(line,*) word, val; I_restart = val
+                case ('array')
+                    read(line,*) word, aname, nr, mr
+                    if (nr /= nc .or. mr /= N) call die('restart file does not match the input: array '//trim(aname))
+                    if (trim(aname) == 'x') then
+                        read(u,*) ((state(v,j), v = 1, N), j = 1, nc)
+                        got_x = .true.
+                    else if (trim(aname) == 'x0') then
+                        read(u,*) ((x0_state(v,j), v = 1, N), j = 1, nc)
+                        got_x0 = .true.
+                    else
+                        call die('restart file does not match the input: array '//trim(aname))
+                    end if
+                end select
+            end do
+            close(u)
+            if (len_trim(model_r) == 0 .or. .not. got_x .or. .not. got_x0) &
+                call die('restart file does not match the input: missing entries')
+        end subroutine read_restart
     end subroutine run_corrected
 
 end module zn_corrected

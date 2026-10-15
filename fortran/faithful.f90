@@ -68,7 +68,10 @@ contains
         rxnk_5 = -9.0; fraction_kmno2 = 0.7
         rewind(nml_unit)
         read(nml_unit, nml=faithful, iostat=ios)
-        if (ios > 0) stop 'error reading &faithful'
+        if (ios > 0) then
+            write(*, '(A)') 'error: error reading &faithful'
+            stop 1
+        end if
         rxnk_2_ = rxnk_2; rxnk_3_ = rxnk_3; frac_zmcx_ = frac_zmcx; frac_zmcmax_ = frac_zmcmax; xmax_ = xmax_t
         applied_current_ = applied_current; porosity_ = porosity; volfrac_mno2_ = volfrac_mno2
         stated_mass_loading_ = stated_mass_loading; zhs_ksp_ = zhs_ksp; rxnk_5_ = rxnk_5; fraction_kmno2_ = fraction_kmno2

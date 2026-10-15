@@ -36,7 +36,7 @@ GROUPS = {
     "constants": ["R", "T", "F"],
     "protocol": ["steps", "cycles", "end_on_cutoff", "V_min", "V_max"],
     "numerics": ["dt", "newton_tol", "newton_max_iter", "dt_mode", "rtol", "atol", "dt_min", "dt_max"],
-    "output": ["file", "write_interval"],
+    "output": ["file", "write_interval", "restart_read", "restart_write"],
 }
 
 EXTRA = ("file", "mode", "data_dir")        # settings that are not model parameters

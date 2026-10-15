@@ -36,6 +36,8 @@
   r3_end_width = 0.01
   logk_file = ''              ! log K overrides, 'name value' per line
   equilibria_db = ''          ! PHREEQC database for the equilibria; '' = Herrmann et al. (2023) Table S1
+  zmc_transfer = .false.      ! a nearly full host turns into ZMO (docs/model.md section 4)
+  k_transfer = 1.0d-3, z_transfer = 0.985   ! its rate constant [1/s] and onset (z = z_transfer * zmax)
 /
 &protocol
   steps = 'cc I=100 Vmin=1.0'     ! mA/g, positive = discharge; GITT: 'cc I=50 t=720; rest t=1800' with cycles = 1000

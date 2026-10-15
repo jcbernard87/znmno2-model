@@ -19,7 +19,7 @@ Zn anode          (open electrolyte)                                        curr
 - The electrolyte starts uniform with the given ZnSO₄, MnSO₄ and H₂SO₄; a salt given as 0 starts as a 10⁻⁹ M trace (the equilibrium potentials need ln c).
 - **Mesh**: cell-centred finite volumes, `n_probe`, `n_sep`, `n_cath` uniform cells per region.
 
-## 2. Unknowns (per cell, N = 12)
+## 2. Unknowns (per cell, N = 13)
 
 | Column | Symbol | Meaning | Unit |
 |---|---|---|---|
@@ -31,6 +31,7 @@ Zn anode          (open electrolyte)                                        curr
 | 8 | s | insertion log-odds, s = ln(θ/(1−θ)) (R3) | – |
 | 9 | n_ZHS | zinc hydroxide sulfate, Zn₄SO₄(OH)₆·5H₂O | mol/cm³ |
 | 10, 11 | n_ZnO, n_Zn(OH)₂ | optional precipitates | mol/cm³ |
+| 12 | n_h | the insertion host's Mn; constant unless `zmc_transfer` | mol Mn/cm³ |
 
 H_T counts master protons (H⁺, HSO₄⁻, 2·H₂SO₄, minus OH⁻ and the hydroxo complexes). It can be negative.
 
@@ -47,7 +48,13 @@ The equilibria are the 21 of Herrmann et al. (2023), SI Table S1 (`speciation.HE
 
 Cathode porosity: `ε = 1 − ε_fixed − Σ_k V_k n_k` over MnO₂, ZMO, ZHS, ZnO and Zn(OH)₂, with molar volumes `V_k = M_k/ρ_k`. `ε_fixed` (inert material plus the insertion host) is fixed by the initial porosity and volume fractions.
 
-Specific areas of spheres: `a_k = 3 V_k n_k / r_k`. The host area is fixed: `a_host = 3 vf_host / r_host`. The host holds `n_host = vf_host ρ_host / M_host` mol Mn/cm³; its inserted Zn is `n_host (z_min + θ (z_max − z_min))`.
+Specific areas of spheres: `a_k = 3 V_k n_k / r_k`. The host area is fixed: `a_host = 3 vf_host / r_host`. The host holds `n_host = vf_host ρ_host / M_host` mol Mn/cm³; its inserted Zn is `n_h (z_min + θ (z_max − z_min))`, with n_h = n_host unless `zmc_transfer`.
+
+**Option `zmc_transfer`** (#5): a nearly full host turns into ZMO, the original programs' transfer at z ≥ 0.985 z_max (deviation M-9) made continuous. The host's Mn n_h is then an unknown, at the rate
+
+  `r = k_transfer · n_h · σ((θ − θ_t)/0.005)`,  θ_t the θ at z = `z_transfer` · z_max,
+
+with `dn_h/dt = −r` and `dn_ZMO/dt = +r`. The transferred Mn takes z_ZMO Zn with it and the host keeps the rest, so no Zn enters or leaves the solution: `n_h (z_max − z_min) dθ/dt = (insertion) + (z(θ) − z_ZMO) r` (with the step's starting n_h, which keeps the discrete Zn balance exact). Below z_ZMO the transfer takes more Zn per Mn than the host holds, so θ falls back towards θ_t, where the transfer switches off. The host's volume V_host n_h enters the porosity and its insertion area scales with n_h/n_host. Zn, Mn, S and H are conserved to round-off.
 
 ## 5. Reactions
 

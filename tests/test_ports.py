@@ -111,6 +111,9 @@ CASES = {
     "host_full": dict(R1_on=False, R2_on=False, steps="cc I=400 Vmin=0.2"),
     # adaptive time steps (#7): the same steps in every implementation
     "adaptive": dict(dt_mode="adaptive"),
+    # a full host turns into ZMO (#5): host Mn as an unknown
+    "zmc_transfer": dict(R1_on=False, R2_on=False, zhs="off", zmc_transfer=True, end_on_cutoff=False,
+                         steps="cc I=400 Vmin=0.2; rest t=1800"),
     "adaptive_cc_cv": dict(steps="cc I=200 Vmin=1.2; cc I=-200 Vmax=1.75; cv V=1.75 Imin=50", end_on_cutoff=False,
                            dt_mode="adaptive"),
 }

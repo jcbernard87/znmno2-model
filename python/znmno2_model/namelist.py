@@ -32,7 +32,7 @@ GROUPS = {
                 "zhs_nucleation", "ZnO_on", "ZnOH2_on", "logK_ZnO", "logK_ZnOH2", "k_ZnO", "k_ZnOH2", "M_ZnO",
                 "rho_ZnO", "M_ZnOH2", "rho_ZnOH2", "r3_ocp", "r3_end_width", "U3_nernst", "logk_file", "equilibria_db",
                 "D_OH",
-                "D_HSO4", "D_complex"],
+                "D_HSO4", "D_complex", "zmc_transfer", "k_transfer", "z_transfer"],
     "constants": ["R", "T", "F"],
     "protocol": ["steps", "cycles", "end_on_cutoff", "V_min", "V_max"],
     "numerics": ["dt", "newton_tol", "newton_max_iter", "dt_mode", "rtol", "atol", "dt_min", "dt_max"],

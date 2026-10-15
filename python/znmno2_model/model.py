@@ -33,8 +33,8 @@ from .driver import SolverFailure
 from .eqchem import LN10, Equilibria, read_logk_file
 from .params import Params
 
-N = 12
-P1, P2, ZN, MN, SO, H, MO, ZM, TH, ZH, ZO, ZX = range(12)
+N = 13
+P1, P2, ZN, MN, SO, H, MO, ZM, TH, ZH, ZO, ZX, NH = range(13)   # NH: the insertion host's Mn [mol/cm3] (#5)
 SPECIES = (ZN, MN, SO, H)
 CHARGE = {ZN: 2.0, MN: 2.0, SO: -2.0, H: 1.0}
 SOLIDS = (MO, ZM, ZH, ZO, ZX)             # amounts that set the porosity
@@ -48,6 +48,7 @@ TH_FLOOR = 1e-8       # theta (or 1 - theta) falls by at most this factor in one
 RES_TOL = 1e-6        # residual at convergence, relative to the 1 mA/g equivalent of each row (res_scale)
 TRACE = 1.0e-9        # [mol/L] initial concentration of a salt given as 0
 FB_REF = 1.0e-6       # amount scale [mol/cm3] of the equilibrium-ZHS complementarity condition
+W_TRANSFER = 0.005    # width in theta of the smooth onset of the host-to-ZMO transfer (zmc_transfer)
 
 
 @dataclass(frozen=True)
@@ -151,6 +152,10 @@ class Model:
         self.V_MO, self.V_ZM, self.V_ZH = self.V[MO], self.V[ZM], self.V[ZH]
         self.eps_fixed = 1.0 - p.eps_cath - p.vf_MnO2 - p.vf_ZMO - p.vf_ZHS   # inert + host
         self.n_host = p.vf_host * p.rho_host / p.M_host                       # mol Mn of the host per cm3
+        # zmc_transfer (#5): a nearly full host turns into ZMO; its Mn (NH) and volume then vary
+        self.V[NH] = p.M_host / p.rho_host
+        self.vol_solids = SOLIDS + (NH,) if p.zmc_transfer else SOLIDS       # amounts that set the porosity
+        self.theta_t = (p.z_transfer * p.zmax - p.zmin) / (p.zmax - p.zmin)
         self.a_host = 3.0 * p.vf_host / p.r_host
         self.D = {ZN: p.D_Zn, MN: p.D_Mn, SO: p.D_SO4, H: p.D_H}
         # precipitates: (on, log K, Zn, SO4, H+ per unit, rate constant)
@@ -166,7 +171,7 @@ class Model:
         self.H0 = None
         self._spec_x = None                                                     # warm start for the speciation
         self._cache = (None, None)
-        self.typ = np.array([1.0, 1.0, 1e-3, 1e-3, 1e-3, 1e-6, 1e-3, 1e-3, 1.0, 1e-3, 1e-3, 1e-3])
+        self.typ = np.array([1.0, 1.0, 1e-3, 1e-3, 1e-3, 1e-6, 1e-3, 1e-3, 1.0, 1e-3, 1e-3, 1e-3, 1e-3])
         # physical residual scales: the 1 mA/g equivalent of each row (current [A], species [mol/s],
         # solids and insertion [mol/cm3/s of cathode]); electroneutrality in mol/L
         i_ref = 1.0e-3 * p.mass
@@ -194,6 +199,7 @@ class Model:
         x[c, MO] = p.vf_MnO2 / self.V[MO]
         x[c, ZM] = p.vf_ZMO / self.V[ZM]
         x[c, ZH] = p.vf_ZHS / self.V[ZH]
+        x[c, NH] = self.n_host
         x[:, TH] = logit(p.theta0)
         free = self.free(x)
         u_zn = 0.5 / self.f * np.log(free[0, 1])
@@ -247,7 +253,10 @@ class Model:
         p, m = self.p, self.mesh
         eps = np.where(m.region == PROBE, p.eps_probe, p.eps_sep).astype(float)
         c = self.cath
-        eps[c] = 1.0 - self.eps_fixed - sum(self.V[k] * x[c, k] for k in SOLIDS)
+        if self.p.zmc_transfer:                          # the host's volume varies with its Mn
+            eps[c] = 1.0 - (self.eps_fixed - self.p.vf_host) - sum(self.V[k] * x[c, k] for k in self.vol_solids)
+        else:
+            eps[c] = 1.0 - self.eps_fixed - sum(self.V[k] * x[c, k] for k in SOLIDS)
         return eps
 
     def tortuosity(self, eps):
@@ -337,7 +346,16 @@ class Model:
         e3 = p1 - p2 - self.u3(x[c, TH], cZn)
         i0 = p.F * p.k3 * np.sqrt(cZn * th * om)
         i3 = self.a_host * i0 * (np.exp(p.alpha3 * 2.0 * f * e3) - np.exp(-(1.0 - p.alpha3) * 2.0 * f * e3)) * p.R3_on
+        if p.zmc_transfer:                               # the host's area shrinks with its Mn
+            i3 = i3 * (x[c, NH] / self.n_host)
         return i1, i2, i3, self.precipitation(x, free, ZH)
+
+    def transfer(self, x):
+        """zmc_transfer: rate [mol Mn/cm3/s] at which a nearly full host turns into ZMO, per cathode cell; it
+        switches on smoothly around theta_t (z = z_transfer z_max). The transferred Mn takes z_ZMO Zn along."""
+        p, c = self.p, self.cath
+        th, _ = theta_pair(x[c, TH])
+        return p.k_transfer * x[c, NH] * sigmoid((th - self.theta_t) / W_TRANSFER)
 
     def _czn(self, x, free, j):
         """The Zn2+ concentration [mol/L] of cell j in the anode kinetics (options basis)."""
@@ -366,9 +384,10 @@ class Model:
         t0, o0 = theta_pair(s_old)
         return np.where((s > 0) & (s_old > 0), o0 - o, t - t0)
 
-    def n_ins(self, s):
+    def n_ins(self, s, nh=None):
+        """Zn inserted in the host [mol/cm3], for host Mn nh (default: the initial host)."""
         p = self.p
-        return self.n_host * (p.zmin + sigmoid(s) * (p.zmax - p.zmin))
+        return (self.n_host if nh is None else nh) * (p.zmin + sigmoid(s) * (p.zmax - p.zmin))
 
     # ------------------------------------------------------------------ residual
     def linear(self, x, old, dt, I):
@@ -384,14 +403,14 @@ class Model:
         for k in self.transported:
             R[:, k] = vol * (eps * x[:, k] - eps_old * old[:, k]) / dt
             J[:, k, k] = vol * eps / dt
-            for s_ in SOLIDS:
+            for s_ in self.vol_solids:
                 J[c, k, s_] = vol[c] * x[c, k] * (-self.V[s_]) / dt
         if p.species == "no_H":
             R[:, H] = x[:, H] - self.H0
             J[:, H, H] = 1.0
         R[:, P2] = (2.0 * x[:, ZN] + 2.0 * x[:, MN] + x[:, H] - 2.0 * x[:, SO]) * 1e3
         J[:, P2, ZN], J[:, P2, MN], J[:, P2, H], J[:, P2, SO] = 2e3, 2e3, 1e3, -2e3
-        for k in (P1,) + SOLIDS:
+        for k in (P1,) + SOLIDS + (NH,):
             R[nc, k] = x[nc, k]
             J[nc, k, k] = 1.0
         R[nc, TH] = x[nc, TH] - old[nc, TH]
@@ -407,7 +426,11 @@ class Model:
                 if k in self.transported:
                     R[c, k] += nu * vc * (x[c, ZH] - old[c, ZH]) / dt
                     J[c, k, ZH] += nu * vc / dt
-        cap = self.n_host * (p.zmax - p.zmin)
+        R[c, NH] = (x[c, NH] - old[c, NH]) / dt          # the host's Mn (changes only with zmc_transfer)
+        J[c, NH, NH] = 1.0 / dt
+        # inserted Zn n_h (zmin + theta dz) with the step's starting n_h: with the transfer's correction (sources)
+        # at the new theta, the host's Zn balance is exact
+        cap = old[c, NH] * (p.zmax - p.zmin)
         th, om = theta_pair(x[c, TH])
         R[c, TH] = cap * self.d_theta(x[c, TH], old[c, TH]) / dt
         J[c, TH, TH] = cap * th * om / dt
@@ -449,6 +472,14 @@ class Model:
         R[c, TH] = -xi3
         for k, rk in rates.items():
             R[c, k] = -rk
+        if p.zmc_transfer:
+            # host -> ZMO: dn_h/dt = -r, dn_ZMO/dt = +r; the host keeps the Zn the transfer leaves behind:
+            # n_h dz dtheta/dt = (insertion) + (z(theta) - z_ZMO) r
+            rt = self.transfer(x)
+            z_th = p.zmin + sigmoid(x[c, TH]) * (p.zmax - p.zmin)
+            R[c, NH] += rt
+            R[c, ZM] -= rt
+            R[c, TH] -= (z_th - p.z_ZMO) * rt
         if p.zhs == "equilibrium":                       # n_ZHS >= 0, w <= 1, n_ZHS (1 - w) = 0 (Fischer-Burmeister)
             a, b = x[c, ZH] / FB_REF, 1.0 - self.zhs_w(free)
             R[c, ZH] = a + b - np.sqrt(a * a + b * b + 1e-20)
@@ -488,7 +519,7 @@ class Model:
         dphi = x[1:, P2] - x[:-1, P2]
 
         def solid_terms(dL, dR, flow, Gf):
-            for s_ in SOLIDS:
+            for s_ in self.vol_solids:
                 dL[:, s_] += -flow * Gf * dhalf[:-1] * (-self.V[s_])
                 dR[:, s_] += -flow * Gf * dhalf[1:] * (-self.V[s_])
 
@@ -550,7 +581,7 @@ class Model:
             dhs = np.where(c, hs / np.where(c, 1.0 - eps, 1.0), 0.0)      # d hs / d eps
             dL = np.zeros((n - 1, N)); dR = np.zeros((n - 1, N))
             dL[:, P1], dR[:, P1] = Gs, -Gs
-            for s_ in SOLIDS:
+            for s_ in self.vol_solids:
                 dL[:, s_] = -flow * Gs * dhs[:-1] * (-self.V[s_])
                 dR[:, s_] = -flow * Gs * dhs[1:] * (-self.V[s_])
             self._add_face(A, B, D, P1, dL, dR)
@@ -566,7 +597,7 @@ class Model:
         near the collector on charge, needs a step far below its typical size); the potentials and s use
         their typical size as the floor. H_T can be zero; its floor is the free-proton level (~1e-8 mol/cm3,
         pH 5), so the step stays well above the speciation solver's tolerance."""
-        floor = np.array([1.0, 1.0, 1e-15, 1e-15, 1e-15, 1e-8, 1e-15, 1e-15, 1.0, 1e-15, 1e-15, 1e-15])
+        floor = np.array([1.0, 1.0, 1e-15, 1e-15, 1e-15, 1e-8, 1e-15, 1e-15, 1.0, 1e-15, 1e-15, 1e-15, 1e-15])
         return 1e-7 * np.maximum(np.abs(x), floor)
 
     def blocks(self, x, old, dt, I):
@@ -648,7 +679,7 @@ class Model:
             lam = self._damping(x, dx)
             new = x + lam * dx
             # solids are local: a step that would make one negative takes it to a tenth of its value instead
-            for k in SOLIDS:
+            for k in SOLIDS + (NH,):
                 neg = new[:, k] < 0
                 new[neg, k] = 0.1 * x[neg, k]
             # theta > 1/2: theta and 1 - theta updated separately (each keeps its full precision), neither
@@ -706,8 +737,9 @@ class Model:
         el = {k: float(np.sum(vol * eps * x[:, k])) for k in SPECIES}
         vc = vol[c]
         s = lambda a: float(np.sum(vc * a))
-        zn = el[ZN] + s(p.z_ZMO * x[c, ZM] + self.n_ins(x[c, TH]) + 4.0 * x[c, ZH] + x[c, ZO] + x[c, ZX])
-        mn = el[MN] + s(x[c, MO] + x[c, ZM])
+        zn = el[ZN] + s(p.z_ZMO * x[c, ZM] + self.n_ins(x[c, TH], x[c, NH]) + 4.0 * x[c, ZH] + x[c, ZO] + x[c, ZX])
+        mn = el[MN] + s(x[c, MO] + x[c, ZM] + x[c, NH])
         so = el[SO] + s(x[c, ZH])
-        h = el[H] - s(6.0 * x[c, ZH] + 2.0 * (x[c, ZO] + x[c, ZX]) + 4.0 * (x[c, MO] + x[c, ZM]))
+        # every oxide Mn (MnO2, ZMO and the host) counts -4 H, the H+ its dissolution takes
+        h = el[H] - s(6.0 * x[c, ZH] + 2.0 * (x[c, ZO] + x[c, ZX]) + 4.0 * (x[c, MO] + x[c, ZM] + x[c, NH]))
         return dict(Zn=zn, Mn=mn, S=so, H=h)

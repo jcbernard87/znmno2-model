@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Host-to-ZMO transfer** (`zmc_transfer`, off by default; all three implementations; #5): the insertion host's Mn is a new unknown (N = 13), so a nearly full host can turn into ZMO at a finite rate, smooth in θ around z = 0.985 z_max (the original programs' transfer, deviation M-9). The transferred Mn takes z_ZMO Zn along; the host keeps the rest; Zn, Mn, S and H stay conserved to round-off. The default output is unchanged.
+- **D_complex:** its comment cited an internal note; it now says the value is assumed, with no cited source yet (#1).
 - **Anode boundary at second order** (all three implementations; #6): the Zn anode kinetics use φ₂ and c_Zn²⁺ extrapolated to the anode face instead of the first cell's centre values, with the matching Jacobian terms. The voltage now converges at second order in space (it was first order); the default output changes by up to about 3 µV (more near the end of a discharge).
 - **Adaptive time stepping** (all three implementations; #7): `dt_mode = 'adaptive'` chooses each time step from backward Euler's local error estimate (linear predictor), against `rtol` and `atol` (scaled by each variable's size), within `dt_min` and `dt_max`; steps land on the output times. Fortran and C++ take the same steps. The default stays `dt_mode = 'fixed'`, so existing inputs give the same output.
 

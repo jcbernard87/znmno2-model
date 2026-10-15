@@ -96,6 +96,9 @@ module zn_params
         character(len=512) :: equilibria_db = ''           ! PHREEQC database for the equilibria; empty: Herrmann et al. (2023) Table S1
         real(dp) :: D_OH = 5.27e-05_dp                     ! species diffusion coefficients for transport = quasi [cm2/s]
         real(dp) :: D_HSO4 = 1.33e-05_dp                   ! HSO4- diffusion coefficient (transport = quasi) [cm2/s]
+        logical :: zmc_transfer = .false.                  ! a nearly full host turns into ZMO (the original's transfer, M-9; #5)
+        real(dp) :: k_transfer = 0.001_dp                  ! zmc_transfer: rate constant [1/s]
+        real(dp) :: z_transfer = 0.985_dp                  ! zmc_transfer: onset at z = z_transfer * zmax
         real(dp) :: D_complex = 5e-06_dp                   ! every other complex (assumed, no cited source yet; #1)
         real(dp) :: R = 8.314462618_dp                     ! gas constant [J/mol/K]
         real(dp) :: T = 298.15_dp                          ! temperature [K]
@@ -135,12 +138,12 @@ contains
         real(dp) :: k1, alpha1, U2, k2, alpha2, a_seed_R2, k3, alpha3
         real(dp) :: V_at_zmin, V_at_zmax, c_ref3, k_an, alpha_an, logK_ZHS, k_ZHS, a_seed_ZHS
         real(dp) :: pH_fixed, zhs_nucleation, logK_ZnO, logK_ZnOH2, k_ZnO, k_ZnOH2, M_ZnO, rho_ZnO
-        real(dp) :: M_ZnOH2, rho_ZnOH2, r3_end_width, U3_nernst, D_OH, D_HSO4, D_complex, R
+        real(dp) :: M_ZnOH2, rho_ZnOH2, r3_end_width, U3_nernst, D_OH, D_HSO4, D_complex, R, k_transfer, z_transfer
         real(dp) :: T, F, V_min, V_max, dt, newton_tol, write_interval, rtol, atol, dt_min, dt_max
         integer :: n_probe, n_sep, n_cath, cycles, newton_max_iter
         character(len=512) :: ph_mode, species, transport, basis, zhs, r3_ocp, logk_file, equilibria_db
         character(len=512) :: steps, dt_mode
-        logical :: R1_on, R2_on, R3_on, ZnO_on, ZnOH2_on, end_on_cutoff
+        logical :: R1_on, R2_on, R3_on, ZnO_on, ZnOH2_on, end_on_cutoff, zmc_transfer
         namelist /cell/ A_cell, L_probe, eps_probe, tau_probe, L_sep, eps_sep, tau_factor_sep, bruggeman_sep, &
             L_cath, eps_cath, tau_factor_cath, bruggeman_cath, n_probe, n_sep, n_cath, sigma
         namelist /solids/ vf_MnO2, vf_ZMO, vf_host, vf_ZHS, M_MnO2, rho_MnO2, rho_ZMO, rho_host, M_ZHS, &
@@ -150,7 +153,8 @@ contains
             c_ref3, k_an, alpha_an, logK_ZHS, k_ZHS, a_seed_ZHS
         namelist /options/ ph_mode, pH_fixed, species, transport, basis, R1_on, R2_on, R3_on, zhs, &
             zhs_nucleation, ZnO_on, ZnOH2_on, logK_ZnO, logK_ZnOH2, k_ZnO, k_ZnOH2, M_ZnO, rho_ZnO, M_ZnOH2, &
-            rho_ZnOH2, r3_ocp, r3_end_width, U3_nernst, logk_file, equilibria_db, D_OH, D_HSO4, D_complex
+            rho_ZnOH2, r3_ocp, r3_end_width, U3_nernst, logk_file, equilibria_db, D_OH, D_HSO4, D_complex, &
+            zmc_transfer, k_transfer, z_transfer
         namelist /constants/ R, T, F
         namelist /protocol/ steps, cycles, end_on_cutoff, V_min, V_max
         namelist /numerics/ dt, newton_tol, newton_max_iter, dt_mode, rtol, atol, dt_min, dt_max
@@ -178,6 +182,7 @@ contains
         rho_ZnO = p%rho_ZnO; M_ZnOH2 = p%M_ZnOH2; rho_ZnOH2 = p%rho_ZnOH2; r3_ocp = p%r3_ocp
         r3_end_width = p%r3_end_width; U3_nernst = p%U3_nernst; logk_file = p%logk_file; equilibria_db = p%equilibria_db
         D_OH = p%D_OH; D_HSO4 = p%D_HSO4; D_complex = p%D_complex; R = p%R
+        zmc_transfer = p%zmc_transfer; k_transfer = p%k_transfer; z_transfer = p%z_transfer
         T = p%T; F = p%F; steps = p%steps; cycles = p%cycles
         end_on_cutoff = p%end_on_cutoff; V_min = p%V_min; V_max = p%V_max; dt = p%dt
         newton_tol = p%newton_tol; newton_max_iter = p%newton_max_iter; write_interval = p%write_interval
@@ -223,6 +228,7 @@ contains
         p%rho_ZnO = rho_ZnO; p%M_ZnOH2 = M_ZnOH2; p%rho_ZnOH2 = rho_ZnOH2; p%r3_ocp = r3_ocp
         p%r3_end_width = r3_end_width; p%U3_nernst = U3_nernst; p%logk_file = logk_file; p%equilibria_db = equilibria_db
         p%D_OH = D_OH; p%D_HSO4 = D_HSO4; p%D_complex = D_complex; p%R = R
+        p%zmc_transfer = zmc_transfer; p%k_transfer = k_transfer; p%z_transfer = z_transfer
         p%T = T; p%F = F; p%steps = steps; p%cycles = cycles
         p%end_on_cutoff = end_on_cutoff; p%V_min = V_min; p%V_max = V_max; p%dt = dt
         p%newton_tol = newton_tol; p%newton_max_iter = newton_max_iter; p%write_interval = write_interval

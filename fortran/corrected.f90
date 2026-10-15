@@ -28,22 +28,24 @@ module zn_corrected
         end function c_expm1
     end interface
 
-    integer, parameter :: N = 12
+    integer, parameter :: N = 13
     integer, parameter :: P1 = 1, P2 = 2, ZN = 3, MN = 4, SO = 5, H = 6, MO = 7, ZM = 8, TH = 9, ZH = 10, &
-                          ZO = 11, ZX = 12
+                          ZO = 11, ZX = 12, NH = 13                  ! NH: the insertion host's Mn [mol/cm3] (#5)
     integer, parameter :: SPECIES(4) = [ZN, MN, SO, H]
     integer, parameter :: SOLIDS(5) = [MO, ZM, ZH, ZO, ZX]
     integer, parameter :: PRECIP(3) = [ZH, ZO, ZX]
     integer, parameter :: TOT_COLS(4) = [H, ZN, MN, SO]      ! column of each speciation total
     integer, parameter :: PROBE = 0, SEP = 1, CATH = 2
     real(dp), parameter :: CHARGE(N) = [0.0_dp, 0.0_dp, 2.0_dp, 2.0_dp, -2.0_dp, 1.0_dp, 0.0_dp, 0.0_dp, &
-                                        0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp]
+                                        0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp]
     real(dp), parameter :: W_SMOOTH = 0.01_dp, S_MAX = 200.0_dp, S_STEP = 20.0_dp, TH_FLOOR = 1e-8_dp
     real(dp), parameter :: RES_TOL = 1e-6_dp, TRACE = 1.0e-9_dp, FB_REF = 1.0e-6_dp
     real(dp), parameter :: TYP(N) = [1.0_dp, 1.0_dp, 1e-3_dp, 1e-3_dp, 1e-3_dp, 1e-6_dp, 1e-3_dp, 1e-3_dp, &
-                                     1.0_dp, 1e-3_dp, 1e-3_dp, 1e-3_dp]
+                                     1.0_dp, 1e-3_dp, 1e-3_dp, 1e-3_dp, 1e-3_dp]
     real(dp), parameter :: STEP_FLOOR(N) = [1.0_dp, 1.0_dp, 1e-15_dp, 1e-15_dp, 1e-15_dp, 1e-8_dp, 1e-15_dp, &
-                                            1e-15_dp, 1.0_dp, 1e-15_dp, 1e-15_dp, 1e-15_dp]
+                                            1e-15_dp, 1.0_dp, 1e-15_dp, 1e-15_dp, 1e-15_dp, 1e-15_dp]
+    real(dp), parameter :: W_TRANSFER = 0.005_dp   ! width in theta of the transfer's smooth onset (zmc_transfer)
+    integer, parameter :: VSOL(6) = [MO, ZM, ZH, ZO, ZX, NH]   ! amounts that set the porosity (NH: zmc_transfer)
     ! driver
     real(dp), parameter :: EVENT_DV = 1.0e-4_dp, MIN_SUBSTEP = 1.0e-10_dp, EVENT_MIN_DT = 1.0e-12_dp, &
                            CV_TOL = 1.0e-9_dp, CV_ACCEPT = 1.0e-6_dp, LIMIT = 1.0e-3_dp, THETA_TOL = 1.0e-6_dp
@@ -57,6 +59,8 @@ module zn_corrected
     integer, allocatable :: region(:)
     logical, allocatable :: incath(:)
     real(dp) :: fRT, Vm(N), eps_fixed, n_host, a_host, Dk(N), mass
+    integer :: nvs                                 ! number of VSOL entries in use: 5, or 6 with zmc_transfer
+    real(dp) :: theta_t                            ! zmc_transfer: onset (theta at z = z_transfer zmax)
     logical :: transported(N), prec_on(N)
     real(dp) :: prec_logk(N), prec_zn(N), prec_s(N), prec_h(N), prec_k(N)
     real(dp) :: ocp_t(51), ocp_c(50,4)
@@ -117,6 +121,10 @@ contains
         Vm(ZO) = p%M_ZnO/p%rho_ZnO; Vm(ZX) = p%M_ZnOH2/p%rho_ZnOH2
         eps_fixed = 1.0_dp - p%eps_cath - p%vf_MnO2 - p%vf_ZMO - p%vf_ZHS
         n_host = p%vf_host*p%rho_host/M_host(p)
+        Vm(NH) = M_host(p)/p%rho_host
+        nvs = 5
+        if (p%zmc_transfer) nvs = 6
+        theta_t = (p%z_transfer*p%zmax - p%zmin)/(p%zmax - p%zmin)
         a_host = 3.0_dp*p%vf_host/p%r_host
         Dk = 0
         Dk(ZN) = p%D_Zn; Dk(MN) = p%D_Mn; Dk(SO) = p%D_SO4; Dk(H) = p%D_H
@@ -409,10 +417,14 @@ contains
             end if
             if (incath(j)) then
                 sv = 0
-                do q = 1, 5
-                    sv = sv + Vm(SOLIDS(q))*x(SOLIDS(q),j)
+                do q = 1, nvs
+                    sv = sv + Vm(VSOL(q))*x(VSOL(q),j)
                 end do
-                eps(j) = 1.0_dp - eps_fixed - sv
+                if (p%zmc_transfer) then                 ! the host's volume varies with its Mn
+                    eps(j) = 1.0_dp - (eps_fixed - p%vf_host) - sv
+                else
+                    eps(j) = 1.0_dp - eps_fixed - sv
+                end if
             end if
         end do
     end subroutine porosity
@@ -525,6 +537,7 @@ contains
         e3 = ph1 - ph2 - u3(x(TH,j), cZn)
         i0 = p%F*p%k3*sqrt(cZn*thv*omv)
         i3 = a_host*i0*(exp(p%alpha3*2.0_dp*fRT*e3) - exp(-(1.0_dp - p%alpha3)*2.0_dp*fRT*e3))*onoff(p%R3_on)
+        if (p%zmc_transfer) i3 = i3*(x(NH,j)/n_host)      ! the host's area shrinks with its Mn
         r = precipitation(x, fr, ZH, j)
     end subroutine reactions
 
@@ -587,8 +600,8 @@ contains
                 R(k,jj) = vol(jj)*(eps(jj)*x(k,jj) - eps_old(jj)*old(k,jj))/dt
                 J(k,k,jj) = vol(jj)*eps(jj)/dt
                 if (incath(jj)) then
-                    do s_ = 1, 5
-                        J(k,SOLIDS(s_),jj) = vol(jj)*x(k,jj)*(-Vm(SOLIDS(s_)))/dt
+                    do s_ = 1, nvs
+                        J(k,VSOL(s_),jj) = vol(jj)*x(k,jj)*(-Vm(VSOL(s_)))/dt
                     end do
                 end if
             end do
@@ -604,6 +617,7 @@ contains
                     k = SOLIDS(s_)
                     R(k,jj) = x(k,jj); J(k,k,jj) = 1.0_dp
                 end do
+                R(NH,jj) = x(NH,jj); J(NH,NH,jj) = 1.0_dp
                 R(TH,jj) = x(TH,jj) - old(TH,jj)
                 J(TH,TH,jj) = 1.0_dp
             else
@@ -627,7 +641,10 @@ contains
                         J(kk,ZH,jj) = J(kk,ZH,jj) + nu*vol(jj)/dt
                     end do
                 end if
-                cap = n_host*(p%zmax - p%zmin)
+                R(NH,jj) = (x(NH,jj) - old(NH,jj))/dt     ! the host's Mn (changes only with zmc_transfer)
+                J(NH,NH,jj) = 1.0_dp/dt
+                ! inserted Zn n_h (zmin + theta dz) with the step's starting n_h (see Model.linear in Python)
+                cap = old(NH,jj)*(p%zmax - p%zmin)
                 call theta_pair(x(TH,jj), thv, omv)
                 R(TH,jj) = cap*d_theta(x(TH,jj), old(TH,jj))/dt
                 J(TH,TH,jj) = cap*thv*omv/dt
@@ -646,6 +663,7 @@ contains
         logical, intent(in), optional :: anode
         real(dp), intent(in), optional :: fr_in(4,nc)
         real(dp) :: fr(4,nc), cb(4,nc), i1, i2, i3, r_zhs, n2, xi1, xi2, xi3, rk(N), dzn, dso, dh, vc, a, b
+        real(dp) :: thv, omv, rt, z_th
         integer :: j, q, k
         R = 0
         if (present(fr_in)) then
@@ -691,6 +709,15 @@ contains
                 k = PRECIP(q)
                 R(k,j) = -rk(k)
             end do
+            if (p%zmc_transfer) then
+                ! host -> ZMO at rate rt (Model.transfer in Python); the host keeps the Zn the transfer leaves
+                call theta_pair(x(TH,j), thv, omv)
+                rt = p%k_transfer*x(NH,j)*sigmoid((thv - theta_t)/W_TRANSFER)
+                z_th = p%zmin + sigmoid(x(TH,j))*(p%zmax - p%zmin)
+                R(NH,j) = R(NH,j) + rt
+                R(ZM,j) = R(ZM,j) - rt
+                R(TH,j) = R(TH,j) - (z_th - p%z_ZMO)*rt
+            end if
             if (p%zhs == 'equilibrium') then             ! n_ZHS >= 0, w <= 1, n_ZHS (1 - w) = 0 (Fischer-Burmeister)
                 a = x(ZH,j)/FB_REF
                 b = 1.0_dp - zhs_w(fr, j)
@@ -866,8 +893,8 @@ contains
             dL = 0; dR = 0
             do j = 1, nc - 1
                 dL(j,P1) = Gs(j); dR(j,P1) = -Gs(j)
-                do s_ = 1, 5
-                    ss = SOLIDS(s_)
+                do s_ = 1, nvs
+                    ss = VSOL(s_)
                     dL(j,ss) = -flow(j)*Gs(j)*dhs(j)*(-Vm(ss))
                     dR(j,ss) = -flow(j)*Gs(j)*dhs(j+1)*(-Vm(ss))
                 end do
@@ -887,8 +914,8 @@ contains
         end subroutine add_flow
         subroutine solid_terms()
             integer :: jf, sf, kf
-            do sf = 1, 5
-                kf = SOLIDS(sf)
+            do sf = 1, nvs
+                kf = VSOL(sf)
                 do jf = 1, nc - 1
                     dL(jf,kf) = dL(jf,kf) + (-flow(jf))*G(jf)*dhalf(jf)*(-Vm(kf))
                     dR(jf,kf) = dR(jf,kf) + (-flow(jf))*G(jf)*dhalf(jf+1)*(-Vm(kf))
@@ -1036,8 +1063,8 @@ contains
             lam = damping(x, dx)
             xout = x + lam*dx
             ! solids are local: a step that would make one negative takes it to a tenth of its value instead
-            do q = 1, 5
-                k = SOLIDS(q)
+            do q = 1, 6
+                k = VSOL(q)
                 do j = 1, nc
                     if (xout(k,j) < 0) xout(k,j) = 0.1_dp*x(k,j)
                 end do
@@ -1103,6 +1130,7 @@ contains
             x(MO,j) = p%vf_MnO2/Vm(MO)
             x(ZM,j) = p%vf_ZMO/Vm(ZM)
             x(ZH,j) = p%vf_ZHS/Vm(ZH)
+            x(NH,j) = n_host
         end do
         x(TH,:) = log(p%theta0/(1.0_dp - p%theta0))
         call free_of(x, .true., fr, fail)

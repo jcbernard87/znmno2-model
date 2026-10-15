@@ -26,6 +26,7 @@ CONFIGS = {
     "r3_spline": dict(r3_ocp="spline"),
     "r1_r2_off": dict(R1_on=False, R2_on=False),
     "acid": dict(c_H2SO4=0.1),
+    "zmc_transfer": dict(zmc_transfer=True),
 }
 
 
@@ -77,7 +78,7 @@ def _fd_blocks(m, x, old, dt, I):
     """Central differences of the whole residual, by column colouring (3 colours)."""
     n = m.mesh.n
     A = np.zeros((n, N, N)); B = np.zeros((n, N, N)); D = np.zeros((n, N, N))
-    h = 1e-6 * np.maximum(np.abs(x), np.array([1, 1, 1e-6, 1e-6, 1e-6, 1e-8, 1e-6, 1e-6, 1, 1e-6, 1e-6, 1e-6]))
+    h = 1e-6 * np.maximum(np.abs(x), np.array([1, 1, 1e-6, 1e-6, 1e-6, 1e-8, 1e-6, 1e-6, 1, 1e-6, 1e-6, 1e-6, 1e-6]))
     for k in range(N):
         for col in range(3):
             idx = np.arange(col, n, 3)
@@ -94,7 +95,8 @@ def _fd_blocks(m, x, old, dt, I):
     return A, B, D
 
 
-@pytest.mark.parametrize("name", ["default", "quasi", "no_H", "zhs_equilibrium", "zno", "totals", "acid"])
+@pytest.mark.parametrize("name", ["default", "quasi", "no_H", "zhs_equilibrium", "zno", "totals", "acid",
+                                  "zmc_transfer"])
 def test_jacobian_matches_central_differences(name):
     p = Params(**FAST, **CONFIGS[name])
     m, xs, I, q = _run(p, steps=2)
@@ -105,6 +107,10 @@ def test_jacobian_matches_central_differences(name):
     c = m.mesh.region == CATH
     for k in (ZH, ZO, 11):                                         # away from the kink of max(n, 0) at n = 0
         x[c, k] = np.maximum(x[c, k], 1e-6)
+    if p.zmc_transfer:                                             # on the transfer's switch, host partly used
+        th = m.theta_t + 0.002 * rng.standard_normal(int(c.sum()))
+        x[c, 8] = np.log(th / (1.0 - th))
+        x[c, 12] *= 0.7
     m.free(x)
     R, A, B, D = m.blocks(x, old, 10.0, I)
     Af, Bf, Df = _fd_blocks(m, x, old, 10.0, I)

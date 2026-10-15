@@ -1210,6 +1210,9 @@ struct Params {
     std::string equilibria_db = "";           // PHREEQC database for the equilibria; empty: Herrmann et al. (2023) Table S1
     double D_OH = 5.27e-05;                   // species diffusion coefficients for transport = quasi [cm2/s]
     double D_HSO4 = 1.33e-05;                 // HSO4- diffusion coefficient (transport = quasi) [cm2/s]
+    bool zmc_transfer = false;                // a nearly full host turns into ZMO (the original's transfer, M-9; #5)
+    double k_transfer = 0.001;                // zmc_transfer: rate constant [1/s]
+    double z_transfer = 0.985;                // zmc_transfer: onset at z = z_transfer * zmax
     double D_complex = 5e-06;                 // every other complex (assumed, no cited source yet; #1)
     double R = 8.314462618;                   // gas constant [J/mol/K]
     double T = 298.15;                        // temperature [K]
@@ -1238,11 +1241,11 @@ struct Fields {
     std::map<std::string, std::string*> strs;
     std::map<std::string, std::string> group;
     explicit Fields(Params& p) {
-        reals = {{"a_cell", &p.A_cell}, {"l_probe", &p.L_probe}, {"eps_probe", &p.eps_probe}, {"tau_probe", &p.tau_probe}, {"l_sep", &p.L_sep}, {"eps_sep", &p.eps_sep}, {"tau_factor_sep", &p.tau_factor_sep}, {"bruggeman_sep", &p.bruggeman_sep}, {"l_cath", &p.L_cath}, {"eps_cath", &p.eps_cath}, {"tau_factor_cath", &p.tau_factor_cath}, {"bruggeman_cath", &p.bruggeman_cath}, {"sigma", &p.sigma}, {"vf_mno2", &p.vf_MnO2}, {"vf_zmo", &p.vf_ZMO}, {"vf_host", &p.vf_host}, {"vf_zhs", &p.vf_ZHS}, {"m_mno2", &p.M_MnO2}, {"rho_mno2", &p.rho_MnO2}, {"rho_zmo", &p.rho_ZMO}, {"rho_host", &p.rho_host}, {"m_zhs", &p.M_ZHS}, {"rho_zhs", &p.rho_ZHS}, {"r_mno2", &p.r_MnO2}, {"r_zmo", &p.r_ZMO}, {"r_host", &p.r_host}, {"r_zhs", &p.r_ZHS}, {"z_zmo", &p.z_ZMO}, {"zmin", &p.zmin}, {"zmax", &p.zmax}, {"theta0", &p.theta0}, {"mass_am", &p.mass_AM}, {"c_znso4", &p.c_ZnSO4}, {"c_mnso4", &p.c_MnSO4}, {"c_h2so4", &p.c_H2SO4}, {"d_zn", &p.D_Zn}, {"d_mn", &p.D_Mn}, {"d_so4", &p.D_SO4}, {"d_h", &p.D_H}, {"u1", &p.U1}, {"k1", &p.k1}, {"alpha1", &p.alpha1}, {"u2", &p.U2}, {"k2", &p.k2}, {"alpha2", &p.alpha2}, {"a_seed_r2", &p.a_seed_R2}, {"k3", &p.k3}, {"alpha3", &p.alpha3}, {"v_at_zmin", &p.V_at_zmin}, {"v_at_zmax", &p.V_at_zmax}, {"c_ref3", &p.c_ref3}, {"k_an", &p.k_an}, {"alpha_an", &p.alpha_an}, {"logk_zhs", &p.logK_ZHS}, {"k_zhs", &p.k_ZHS}, {"a_seed_zhs", &p.a_seed_ZHS}, {"ph_fixed", &p.pH_fixed}, {"zhs_nucleation", &p.zhs_nucleation}, {"logk_zno", &p.logK_ZnO}, {"logk_znoh2", &p.logK_ZnOH2}, {"k_zno", &p.k_ZnO}, {"k_znoh2", &p.k_ZnOH2}, {"m_zno", &p.M_ZnO}, {"rho_zno", &p.rho_ZnO}, {"m_znoh2", &p.M_ZnOH2}, {"rho_znoh2", &p.rho_ZnOH2}, {"r3_end_width", &p.r3_end_width}, {"u3_nernst", &p.U3_nernst}, {"d_oh", &p.D_OH}, {"d_hso4", &p.D_HSO4}, {"d_complex", &p.D_complex}, {"r", &p.R}, {"t", &p.T}, {"f", &p.F}, {"v_min", &p.V_min}, {"v_max", &p.V_max}, {"dt", &p.dt}, {"write_interval", &p.write_interval}, {"newton_tol", &p.newton_tol}, {"rtol", &p.rtol}, {"atol", &p.atol}, {"dt_min", &p.dt_min}, {"dt_max", &p.dt_max}};
+        reals = {{"a_cell", &p.A_cell}, {"l_probe", &p.L_probe}, {"eps_probe", &p.eps_probe}, {"tau_probe", &p.tau_probe}, {"l_sep", &p.L_sep}, {"eps_sep", &p.eps_sep}, {"tau_factor_sep", &p.tau_factor_sep}, {"bruggeman_sep", &p.bruggeman_sep}, {"l_cath", &p.L_cath}, {"eps_cath", &p.eps_cath}, {"tau_factor_cath", &p.tau_factor_cath}, {"bruggeman_cath", &p.bruggeman_cath}, {"sigma", &p.sigma}, {"vf_mno2", &p.vf_MnO2}, {"vf_zmo", &p.vf_ZMO}, {"vf_host", &p.vf_host}, {"vf_zhs", &p.vf_ZHS}, {"m_mno2", &p.M_MnO2}, {"rho_mno2", &p.rho_MnO2}, {"rho_zmo", &p.rho_ZMO}, {"rho_host", &p.rho_host}, {"m_zhs", &p.M_ZHS}, {"rho_zhs", &p.rho_ZHS}, {"r_mno2", &p.r_MnO2}, {"r_zmo", &p.r_ZMO}, {"r_host", &p.r_host}, {"r_zhs", &p.r_ZHS}, {"z_zmo", &p.z_ZMO}, {"zmin", &p.zmin}, {"zmax", &p.zmax}, {"theta0", &p.theta0}, {"mass_am", &p.mass_AM}, {"c_znso4", &p.c_ZnSO4}, {"c_mnso4", &p.c_MnSO4}, {"c_h2so4", &p.c_H2SO4}, {"d_zn", &p.D_Zn}, {"d_mn", &p.D_Mn}, {"d_so4", &p.D_SO4}, {"d_h", &p.D_H}, {"u1", &p.U1}, {"k1", &p.k1}, {"alpha1", &p.alpha1}, {"u2", &p.U2}, {"k2", &p.k2}, {"alpha2", &p.alpha2}, {"a_seed_r2", &p.a_seed_R2}, {"k3", &p.k3}, {"alpha3", &p.alpha3}, {"v_at_zmin", &p.V_at_zmin}, {"v_at_zmax", &p.V_at_zmax}, {"c_ref3", &p.c_ref3}, {"k_an", &p.k_an}, {"alpha_an", &p.alpha_an}, {"logk_zhs", &p.logK_ZHS}, {"k_zhs", &p.k_ZHS}, {"a_seed_zhs", &p.a_seed_ZHS}, {"ph_fixed", &p.pH_fixed}, {"zhs_nucleation", &p.zhs_nucleation}, {"logk_zno", &p.logK_ZnO}, {"logk_znoh2", &p.logK_ZnOH2}, {"k_zno", &p.k_ZnO}, {"k_znoh2", &p.k_ZnOH2}, {"m_zno", &p.M_ZnO}, {"rho_zno", &p.rho_ZnO}, {"m_znoh2", &p.M_ZnOH2}, {"rho_znoh2", &p.rho_ZnOH2}, {"r3_end_width", &p.r3_end_width}, {"u3_nernst", &p.U3_nernst}, {"d_oh", &p.D_OH}, {"d_hso4", &p.D_HSO4}, {"d_complex", &p.D_complex}, {"k_transfer", &p.k_transfer}, {"z_transfer", &p.z_transfer}, {"r", &p.R}, {"t", &p.T}, {"f", &p.F}, {"v_min", &p.V_min}, {"v_max", &p.V_max}, {"dt", &p.dt}, {"write_interval", &p.write_interval}, {"newton_tol", &p.newton_tol}, {"rtol", &p.rtol}, {"atol", &p.atol}, {"dt_min", &p.dt_min}, {"dt_max", &p.dt_max}};
         ints = {{"n_probe", &p.n_probe}, {"n_sep", &p.n_sep}, {"n_cath", &p.n_cath}, {"cycles", &p.cycles}, {"newton_max_iter", &p.newton_max_iter}};
-        bools = {{"r1_on", &p.R1_on}, {"r2_on", &p.R2_on}, {"r3_on", &p.R3_on}, {"zno_on", &p.ZnO_on}, {"znoh2_on", &p.ZnOH2_on}, {"end_on_cutoff", &p.end_on_cutoff}};
+        bools = {{"r1_on", &p.R1_on}, {"r2_on", &p.R2_on}, {"r3_on", &p.R3_on}, {"zno_on", &p.ZnO_on}, {"znoh2_on", &p.ZnOH2_on}, {"end_on_cutoff", &p.end_on_cutoff}, {"zmc_transfer", &p.zmc_transfer}};
         strs = {{"ph_mode", &p.ph_mode}, {"species", &p.species}, {"transport", &p.transport}, {"basis", &p.basis}, {"zhs", &p.zhs}, {"r3_ocp", &p.r3_ocp}, {"logk_file", &p.logk_file}, {"equilibria_db", &p.equilibria_db}, {"steps", &p.steps}, {"dt_mode", &p.dt_mode}};
-        group = {{"mode", "run"}, {"data_dir", "run"}, {"a_cell", "cell"}, {"l_probe", "cell"}, {"eps_probe", "cell"}, {"tau_probe", "cell"}, {"l_sep", "cell"}, {"eps_sep", "cell"}, {"tau_factor_sep", "cell"}, {"bruggeman_sep", "cell"}, {"l_cath", "cell"}, {"eps_cath", "cell"}, {"tau_factor_cath", "cell"}, {"bruggeman_cath", "cell"}, {"n_probe", "cell"}, {"n_sep", "cell"}, {"n_cath", "cell"}, {"sigma", "cell"}, {"vf_mno2", "solids"}, {"vf_zmo", "solids"}, {"vf_host", "solids"}, {"vf_zhs", "solids"}, {"m_mno2", "solids"}, {"rho_mno2", "solids"}, {"rho_zmo", "solids"}, {"rho_host", "solids"}, {"m_zhs", "solids"}, {"rho_zhs", "solids"}, {"r_mno2", "solids"}, {"r_zmo", "solids"}, {"r_host", "solids"}, {"r_zhs", "solids"}, {"z_zmo", "solids"}, {"zmin", "solids"}, {"zmax", "solids"}, {"theta0", "solids"}, {"mass_am", "solids"}, {"c_znso4", "electrolyte"}, {"c_mnso4", "electrolyte"}, {"c_h2so4", "electrolyte"}, {"d_zn", "electrolyte"}, {"d_mn", "electrolyte"}, {"d_so4", "electrolyte"}, {"d_h", "electrolyte"}, {"u1", "reactions"}, {"k1", "reactions"}, {"alpha1", "reactions"}, {"u2", "reactions"}, {"k2", "reactions"}, {"alpha2", "reactions"}, {"a_seed_r2", "reactions"}, {"k3", "reactions"}, {"alpha3", "reactions"}, {"v_at_zmin", "reactions"}, {"v_at_zmax", "reactions"}, {"c_ref3", "reactions"}, {"k_an", "reactions"}, {"alpha_an", "reactions"}, {"logk_zhs", "reactions"}, {"k_zhs", "reactions"}, {"a_seed_zhs", "reactions"}, {"ph_mode", "options"}, {"ph_fixed", "options"}, {"species", "options"}, {"transport", "options"}, {"basis", "options"}, {"r1_on", "options"}, {"r2_on", "options"}, {"r3_on", "options"}, {"zhs", "options"}, {"zhs_nucleation", "options"}, {"zno_on", "options"}, {"znoh2_on", "options"}, {"logk_zno", "options"}, {"logk_znoh2", "options"}, {"k_zno", "options"}, {"k_znoh2", "options"}, {"m_zno", "options"}, {"rho_zno", "options"}, {"m_znoh2", "options"}, {"rho_znoh2", "options"}, {"r3_ocp", "options"}, {"r3_end_width", "options"}, {"u3_nernst", "options"}, {"logk_file", "options"}, {"equilibria_db", "options"}, {"d_oh", "options"}, {"d_hso4", "options"}, {"d_complex", "options"}, {"r", "constants"}, {"t", "constants"}, {"f", "constants"}, {"steps", "protocol"}, {"cycles", "protocol"}, {"end_on_cutoff", "protocol"}, {"v_min", "protocol"}, {"v_max", "protocol"}, {"dt", "numerics"}, {"newton_tol", "numerics"}, {"newton_max_iter", "numerics"}, {"dt_mode", "numerics"}, {"rtol", "numerics"}, {"atol", "numerics"}, {"dt_min", "numerics"}, {"dt_max", "numerics"}, {"file", "output"}, {"write_interval", "output"}};
+        group = {{"mode", "run"}, {"data_dir", "run"}, {"a_cell", "cell"}, {"l_probe", "cell"}, {"eps_probe", "cell"}, {"tau_probe", "cell"}, {"l_sep", "cell"}, {"eps_sep", "cell"}, {"tau_factor_sep", "cell"}, {"bruggeman_sep", "cell"}, {"l_cath", "cell"}, {"eps_cath", "cell"}, {"tau_factor_cath", "cell"}, {"bruggeman_cath", "cell"}, {"n_probe", "cell"}, {"n_sep", "cell"}, {"n_cath", "cell"}, {"sigma", "cell"}, {"vf_mno2", "solids"}, {"vf_zmo", "solids"}, {"vf_host", "solids"}, {"vf_zhs", "solids"}, {"m_mno2", "solids"}, {"rho_mno2", "solids"}, {"rho_zmo", "solids"}, {"rho_host", "solids"}, {"m_zhs", "solids"}, {"rho_zhs", "solids"}, {"r_mno2", "solids"}, {"r_zmo", "solids"}, {"r_host", "solids"}, {"r_zhs", "solids"}, {"z_zmo", "solids"}, {"zmin", "solids"}, {"zmax", "solids"}, {"theta0", "solids"}, {"mass_am", "solids"}, {"c_znso4", "electrolyte"}, {"c_mnso4", "electrolyte"}, {"c_h2so4", "electrolyte"}, {"d_zn", "electrolyte"}, {"d_mn", "electrolyte"}, {"d_so4", "electrolyte"}, {"d_h", "electrolyte"}, {"u1", "reactions"}, {"k1", "reactions"}, {"alpha1", "reactions"}, {"u2", "reactions"}, {"k2", "reactions"}, {"alpha2", "reactions"}, {"a_seed_r2", "reactions"}, {"k3", "reactions"}, {"alpha3", "reactions"}, {"v_at_zmin", "reactions"}, {"v_at_zmax", "reactions"}, {"c_ref3", "reactions"}, {"k_an", "reactions"}, {"alpha_an", "reactions"}, {"logk_zhs", "reactions"}, {"k_zhs", "reactions"}, {"a_seed_zhs", "reactions"}, {"ph_mode", "options"}, {"ph_fixed", "options"}, {"species", "options"}, {"transport", "options"}, {"basis", "options"}, {"r1_on", "options"}, {"r2_on", "options"}, {"r3_on", "options"}, {"zhs", "options"}, {"zhs_nucleation", "options"}, {"zno_on", "options"}, {"znoh2_on", "options"}, {"logk_zno", "options"}, {"logk_znoh2", "options"}, {"k_zno", "options"}, {"k_znoh2", "options"}, {"m_zno", "options"}, {"rho_zno", "options"}, {"m_znoh2", "options"}, {"rho_znoh2", "options"}, {"r3_ocp", "options"}, {"r3_end_width", "options"}, {"u3_nernst", "options"}, {"logk_file", "options"}, {"equilibria_db", "options"}, {"d_oh", "options"}, {"d_hso4", "options"}, {"d_complex", "options"}, {"zmc_transfer", "options"}, {"k_transfer", "options"}, {"z_transfer", "options"}, {"r", "constants"}, {"t", "constants"}, {"f", "constants"}, {"steps", "protocol"}, {"cycles", "protocol"}, {"end_on_cutoff", "protocol"}, {"v_min", "protocol"}, {"v_max", "protocol"}, {"dt", "numerics"}, {"newton_tol", "numerics"}, {"newton_max_iter", "numerics"}, {"dt_mode", "numerics"}, {"rtol", "numerics"}, {"atol", "numerics"}, {"dt_min", "numerics"}, {"dt_max", "numerics"}, {"file", "output"}, {"write_interval", "output"}};
     }
 };
 
@@ -1695,18 +1698,21 @@ struct Eq {
 };
 
 // ------------------------------------------------------------------ the model (fortran/corrected.f90)
-constexpr int N = 12;
-constexpr int P1 = 1, P2 = 2, ZN = 3, MN = 4, SO = 5, H = 6, MO = 7, ZM = 8, TH = 9, ZH = 10, ZO = 11, ZX = 12;
+constexpr int N = 13;
+constexpr int P1 = 1, P2 = 2, ZN = 3, MN = 4, SO = 5, H = 6, MO = 7, ZM = 8, TH = 9, ZH = 10, ZO = 11, ZX = 12,
+              NH = 13;  // NH: the insertion host's Mn [mol/cm3] (#5)
 constexpr int SPECIES[4] = {ZN, MN, SO, H};
 constexpr int SOLIDS[5] = {MO, ZM, ZH, ZO, ZX};
 constexpr int PRECIP[3] = {ZH, ZO, ZX};
 constexpr int TOT_COLS[5] = {0, H, ZN, MN, SO};     // 1-based: column of each speciation total
 constexpr int PROBE = 0, SEP = 1, CATH = 2;
-constexpr double CHARGE[N + 1] = {0, 0, 0, 2.0, 2.0, -2.0, 1.0, 0, 0, 0, 0, 0, 0};
+constexpr double CHARGE[N + 1] = {0, 0, 0, 2.0, 2.0, -2.0, 1.0, 0, 0, 0, 0, 0, 0, 0};
 constexpr double W_SMOOTH = 0.01, S_MAX = 200.0, S_STEP = 20.0, TH_FLOOR = 1e-8;
 constexpr double RES_TOL = 1e-6, TRACE = 1.0e-9, FB_REF = 1.0e-6;
-constexpr double TYP[N + 1] = {0, 1.0, 1.0, 1e-3, 1e-3, 1e-3, 1e-6, 1e-3, 1e-3, 1.0, 1e-3, 1e-3, 1e-3};
-constexpr double STEP_FLOOR[N + 1] = {0, 1.0, 1.0, 1e-15, 1e-15, 1e-15, 1e-8, 1e-15, 1e-15, 1.0, 1e-15, 1e-15, 1e-15};
+constexpr double TYP[N + 1] = {0, 1.0, 1.0, 1e-3, 1e-3, 1e-3, 1e-6, 1e-3, 1e-3, 1.0, 1e-3, 1e-3, 1e-3, 1e-3};
+constexpr double STEP_FLOOR[N + 1] = {0, 1.0, 1.0, 1e-15, 1e-15, 1e-15, 1e-8, 1e-15, 1e-15, 1.0, 1e-15, 1e-15, 1e-15, 1e-15};
+constexpr double W_TRANSFER = 0.005;  // width in theta of the transfer's smooth onset (zmc_transfer)
+constexpr int VSOL[6] = {MO, ZM, ZH, ZO, ZX, NH};  // amounts that set the porosity (NH: zmc_transfer)
 constexpr double EVENT_DV = 1.0e-4, MIN_SUBSTEP = 1.0e-10, EVENT_MIN_DT = 1.0e-12, CV_TOL = 1.0e-9, CV_ACCEPT = 1.0e-6,
                  LIMIT = 1.0e-3, THETA_TOL = 1.0e-6;
 constexpr int MAX_FAILURES = 200;
@@ -1751,6 +1757,8 @@ struct Model {
     std::vector<int> region;
     std::vector<char> incath;
     double fRT = 0, Vm[N + 1] = {}, eps_fixed = 0, n_host = 0, a_host = 0, Dk[N + 1] = {}, mass = 0;
+    int nvs = 5;          // number of VSOL entries in use: 5, or 6 with zmc_transfer
+    double theta_t = 0;   // zmc_transfer: onset (theta at z = z_transfer zmax)
     bool transported[N + 1] = {}, prec_on[N + 1] = {};
     double prec_logk[N + 1] = {}, prec_zn[N + 1] = {}, prec_s[N + 1] = {}, prec_h[N + 1] = {}, prec_k[N + 1] = {};
     double ocp_t[52] = {}, ocp_c[51][5] = {};
@@ -1808,6 +1816,9 @@ struct Model {
         Vm[ZO] = p.M_ZnO / p.rho_ZnO; Vm[ZX] = p.M_ZnOH2 / p.rho_ZnOH2;
         eps_fixed = 1.0 - p.eps_cath - p.vf_MnO2 - p.vf_ZMO - p.vf_ZHS;
         n_host = p.vf_host * p.rho_host / M_host();
+        Vm[NH] = M_host() / p.rho_host;
+        nvs = p.zmc_transfer ? 6 : 5;
+        theta_t = (p.z_transfer * p.zmax - p.zmin) / (p.zmax - p.zmin);
         a_host = 3.0 * p.vf_host / p.r_host;
         Dk[ZN] = p.D_Zn; Dk[MN] = p.D_Mn; Dk[SO] = p.D_SO4; Dk[H] = p.D_H;
         prec_on[ZH] = p.zhs == "kinetic"; prec_on[ZO] = p.ZnO_on; prec_on[ZX] = p.ZnOH2_on;
@@ -1936,8 +1947,9 @@ struct Model {
             eps[j] = region[j] == PROBE ? p.eps_probe : p.eps_sep;
             if (incath[j]) {
                 double sv = 0;
-                for (int s : SOLIDS) sv = sv + Vm[s] * x(s, j);
-                eps[j] = 1.0 - eps_fixed - sv;
+                for (int q = 0; q < nvs; ++q) sv = sv + Vm[VSOL[q]] * x(VSOL[q], j);
+                if (p.zmc_transfer) eps[j] = 1.0 - (eps_fixed - p.vf_host) - sv;  // the host's volume varies
+                else eps[j] = 1.0 - eps_fixed - sv;
             }
         }
         return eps;
@@ -2009,6 +2021,7 @@ struct Model {
         const double e3 = ph1 - ph2 - u3(x(TH, j), cZn);
         const double i0 = p.F * p.k3 * std::sqrt(cZn * th * om);
         i3 = a_host * i0 * (std::exp(p.alpha3 * 2.0 * fRT * e3) - std::exp(-(1.0 - p.alpha3) * 2.0 * fRT * e3)) * onoff(p.R3_on);
+        if (p.zmc_transfer) i3 = i3 * (x(NH, j) / n_host);  // the host's area shrinks with its Mn
         r = precipitation(x, fr, ZH, j);
     }
     // the Zn2+ concentration [mol/L] of cell j in the anode kinetics (options basis)
@@ -2043,7 +2056,7 @@ struct Model {
                 R(k, jj) = vol[jj] * (eps[jj] * x(k, jj) - eps_old[jj] * old(k, jj)) / dt;
                 J(k, k, jj) = vol[jj] * eps[jj] / dt;
                 if (incath[jj])
-                    for (int s : SOLIDS) J(k, s, jj) = vol[jj] * x(k, jj) * (-Vm[s]) / dt;
+                    for (int q = 0; q < nvs; ++q) J(k, VSOL[q], jj) = vol[jj] * x(k, jj) * (-Vm[VSOL[q]]) / dt;
             }
             if (p.species == "no_H") {
                 R(H, jj) = x(H, jj) - H0[jj];
@@ -2054,6 +2067,7 @@ struct Model {
             if (!incath[jj]) {
                 R(P1, jj) = x(P1, jj); J(P1, P1, jj) = 1.0;
                 for (int k : SOLIDS) { R(k, jj) = x(k, jj); J(k, k, jj) = 1.0; }
+                R(NH, jj) = x(NH, jj); J(NH, NH, jj) = 1.0;
                 R(TH, jj) = x(TH, jj) - old(TH, jj);
                 J(TH, TH, jj) = 1.0;
             } else {
@@ -2072,7 +2086,10 @@ struct Model {
                         J(kk, ZH, jj) = J(kk, ZH, jj) + nus[q] * vol[jj] / dt;
                     }
                 }
-                const double cap = n_host * (p.zmax - p.zmin);
+                R(NH, jj) = (x(NH, jj) - old(NH, jj)) / dt;  // the host's Mn (changes only with zmc_transfer)
+                J(NH, NH, jj) = 1.0 / dt;
+                // inserted Zn n_h (zmin + theta dz) with the step's starting n_h (see Model.linear in Python)
+                const double cap = old(NH, jj) * (p.zmax - p.zmin);
                 double th, om;
                 theta_pair(x(TH, jj), th, om);
                 R(TH, jj) = cap * d_theta(x(TH, jj), old(TH, jj)) / dt;
@@ -2117,6 +2134,16 @@ struct Model {
             R(ZM, j) = xi2;
             R(TH, j) = -xi3;
             for (int k : PRECIP) R(k, j) = -rk[k];
+            if (p.zmc_transfer) {
+                // host -> ZMO at rate rt (Model.transfer in Python); the host keeps the Zn the transfer leaves
+                double th, om;
+                theta_pair(x(TH, j), th, om);
+                const double rt = p.k_transfer * x(NH, j) * sigmoid((th - theta_t) / W_TRANSFER);
+                const double z_th = p.zmin + sigmoid(x(TH, j)) * (p.zmax - p.zmin);
+                R(NH, j) = R(NH, j) + rt;
+                R(ZM, j) = R(ZM, j) - rt;
+                R(TH, j) = R(TH, j) - (z_th - p.z_ZMO) * rt;
+            }
             if (p.zhs == "equilibrium") {
                 const double a = x(ZH, j) / FB_REF, b = 1.0 - zhs_w(fr, j);
                 R(ZH, j) = a + b - std::sqrt(a * a + b * b + 1e-20);
@@ -2164,8 +2191,8 @@ struct Model {
             for (int jf = 2; jf <= nc; ++jf) R(row, jf) = R(row, jf) - flow[jf - 1];
         };
         auto solid_terms = [&]() {
-            for (int kf : SOLIDS)
-                for (int jf = 1; jf <= nf; ++jf) {
+            for (int q = 0; q < nvs; ++q)
+                for (int jf = 1, kf = VSOL[q]; jf <= nf; ++jf) {
                     dL(jf, kf) = dL(jf, kf) + (-flow[jf]) * G[jf] * dhalf[jf] * (-Vm[kf]);
                     dR(jf, kf) = dR(jf, kf) + (-flow[jf]) * G[jf] * dhalf[jf + 1] * (-Vm[kf]);
                 }
@@ -2272,7 +2299,8 @@ struct Model {
             dL = Mat(nf, N); dR = Mat(nf, N);
             for (int j = 1; j <= nf; ++j) {
                 dL(j, P1) = Gs[j]; dR(j, P1) = -Gs[j];
-                for (int ss : SOLIDS) {
+                for (int q = 0; q < nvs; ++q) {
+                    const int ss = VSOL[q];
                     dL(j, ss) = -(flow[j] * Gs[j] * dhs[j] * (-Vm[ss]));
                     dR(j, ss) = -(flow[j] * Gs[j] * dhs[j + 1] * (-Vm[ss]));
                 }
@@ -2392,7 +2420,7 @@ struct Model {
             const double lam = damping(x, dx);
             xout = Mat(N, nc);
             for (std::size_t q = 0; q < x.d.size(); ++q) xout.d[q] = x.d[q] + lam * dx.d[q];
-            for (int k : SOLIDS)
+            for (int k : VSOL)
                 for (int j = 1; j <= nc; ++j)
                     if (xout(k, j) < 0) xout(k, j) = 0.1 * x(k, j);
             double upd = 0;
@@ -2445,6 +2473,7 @@ struct Model {
             x(MO, j) = p.vf_MnO2 / Vm[MO];
             x(ZM, j) = p.vf_ZMO / Vm[ZM];
             x(ZH, j) = p.vf_ZHS / Vm[ZH];
+            x(NH, j) = n_host;
         }
         for (int j = 1; j <= nc; ++j) x(TH, j) = std::log(p.theta0 / (1.0 - p.theta0));
         const Mat fr = free_of(x, true);
